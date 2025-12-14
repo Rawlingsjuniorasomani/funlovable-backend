@@ -126,6 +126,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({ message: 'E-Learning API is running 🚀', timestamp: new Date().toISOString() });
+});
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));

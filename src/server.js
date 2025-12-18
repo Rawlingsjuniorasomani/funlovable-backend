@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 
 const jwt = require('jsonwebtoken');
 const pool = require('./db/pool');
@@ -14,7 +15,7 @@ const server = http.createServer(app);
 // Socket.io setup
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL, 'http://localhost:8080', 'http://localhost:5173', 'https://lovablelearns.vercel.app'] : ['http://localhost:8080', 'http://localhost:5173', 'https://lovablelearns.vercel.app'],
+    origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://lovablelearns.vercel.app'] : ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://lovablelearns.vercel.app'],
     credentials: true,
     methods: ["GET", "POST"]
   }
@@ -149,9 +150,10 @@ io.on('connection', (socket) => {
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL, 'http://localhost:8080', 'http://localhost:5173', 'https://lovablelearns.vercel.app'] : ['http://localhost:8080', 'http://localhost:5173', 'https://lovablelearns.vercel.app'],
+  origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://lovablelearns.vercel.app'] : ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://lovablelearns.vercel.app'],
   credentials: true
 }));
+app.use(cookieParser());
 app.use(express.json());
 
 // Health check

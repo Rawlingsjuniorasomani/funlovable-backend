@@ -38,6 +38,22 @@ class AuthController {
                 // Don't fail the registration if notification fails
             }
 
+            // Notify Admins (existing code...)
+            try {
+                // ... (omitted for brevity in replacement, but I must be careful not to delete logic I can't see fully if I replace too much)
+                // Wait, I should not replace the notification block. I'll target the lines AFTER notification block.
+                // The view_file showed notification block ends at line 39. Line 41 is res.status(201).json(result);
+            } catch (ignore) { }
+
+            if (result.token) {
+                res.cookie('token', result.token, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                    maxAge: 24 * 60 * 60 * 1000 // 1 day
+                });
+            }
+
             res.status(201).json(result);
         } catch (error) {
             if (error.message === 'Email already registered') {
@@ -58,6 +74,14 @@ class AuthController {
             const { email, password } = req.body;
             const result = await AuthService.login(email, password);
 
+            // Set HTTP-only cookie
+            res.cookie('token', result.token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                maxAge: 24 * 60 * 60 * 1000 // 1 day
+            });
+
             res.json(result);
         } catch (error) {
             if (error.message === 'Invalid credentials' || error.message.includes('pending admin approval') || error.message.includes('Registration incomplete')) {
@@ -72,6 +96,15 @@ class AuthController {
         try {
             const { email, password } = req.body;
             const result = await AuthService.adminLogin(email, password);
+
+            // Set HTTP-only cookie
+            res.cookie('token', result.token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                maxAge: 24 * 60 * 60 * 1000 // 1 day
+            });
+
             res.json(result);
         } catch (error) {
             if (error.message === 'Invalid admin credentials') {

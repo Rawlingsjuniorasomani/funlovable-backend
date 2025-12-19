@@ -9,7 +9,7 @@ async function seedPlans() {
 
         const plans = [
             {
-                plan_name: 'Single Plan',
+                plan_name: 'Single Child',
                 price: 300,
                 duration_days: 120, // Termly
                 features: JSON.stringify(['Access to all subjects', 'Basic quizzes', 'Progress tracking', 'Email support']),

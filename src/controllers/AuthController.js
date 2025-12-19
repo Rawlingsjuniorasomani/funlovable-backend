@@ -10,6 +10,13 @@ class AuthController {
             }
 
             const { name, email, password, role, phone, school, age, class: studentClass, ...rest } = req.body;
+
+            if (role === 'parent' || role === 'student') {
+                return res.status(403).json({
+                    error: 'Payment required before account creation',
+                    code: 'PAYMENT_REQUIRED'
+                });
+            }
             // Map 'class' from frontend to 'studentClass' for backend consistency, or just pass 'class' if service handles it. 
             // Better to pass explicit fields.
             const result = await AuthService.register({ name, email, password, role, phone, school, age, studentClass, ...rest });
@@ -183,7 +190,7 @@ class AuthController {
             res.json(result);
         } catch (error) {
             console.error('Forgot password error:', error);
-            res.status(500).json({ error: 'Request failed' });
+            res.status(400).json({ error: error.message || 'Request failed' });
         }
     }
 

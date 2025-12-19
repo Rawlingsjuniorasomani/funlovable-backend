@@ -236,6 +236,25 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_lessons_module ON lessons(module_id);
 CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id);
+
+-- 22. Pending Registrations (used for payment-based registration flow)
+CREATE TABLE IF NOT EXISTS pending_registrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reference VARCHAR(255) UNIQUE NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  role VARCHAR(50) NOT NULL,
+  plan_id UUID REFERENCES plans(id),
+  amount NUMERIC NOT NULL,
+  currency VARCHAR(10) DEFAULT 'GHS',
+  status VARCHAR(50) DEFAULT 'pending',
+  paystack_access_code VARCHAR(255),
+  payload JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_pending_registrations_reference ON pending_registrations(reference);
+CREATE INDEX IF NOT EXISTS idx_pending_registrations_email ON pending_registrations(email);
 `;
 
 async function migrate() {

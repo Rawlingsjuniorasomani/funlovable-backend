@@ -1,7 +1,7 @@
 const pool = require('../db/pool');
 
 class SubscriptionModel {
-    static async create({ user_id, plan_id, plan_name, amount, status, start_date, expires_at, payment_method }) {
+    static async create({ user_id, plan_id, amount, status, start_date, expires_at, payment_reference }) {
         // Upsert logic: if exists for parent, update it. If not, insert.
         // Or just insert new history? Usually one active subscription.
         // Let's use INSERT ... ON CONFLICT (parent_id) if parent_id is unique, or just insert new one.
@@ -13,9 +13,16 @@ class SubscriptionModel {
             `INSERT INTO subscriptions (user_id, plan, amount, status, starts_at, expires_at, payment_reference)
              VALUES ($1, $2, $3, $4, $5, $6, $7)
              RETURNING *`,
-            [user_id, plan_id, amount, status, start_date, expires_at, payment_method] // mapping start_date to starts_at, payment_method to payment_reference
+            [user_id, plan_id, amount, status, start_date, expires_at, payment_reference]
         );
         return result.rows[0];
+    }
+
+    static async deactivateActive(userId) {
+        await pool.query(
+            "UPDATE subscriptions SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND status = 'active'",
+            [userId]
+        );
     }
 
     static async findByParent(user_id) {

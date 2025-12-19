@@ -9,14 +9,14 @@ async function seedPlans() {
 
         const plans = [
             {
-                plan_name: 'Standard Plan',
+                plan_name: 'Single Plan',
                 price: 300,
                 duration_days: 120, // Termly
                 features: JSON.stringify(['Access to all subjects', 'Basic quizzes', 'Progress tracking', 'Email support']),
                 description: 'Perfect for getting started with termly assessments.'
             },
             {
-                plan_name: 'Premium Plan',
+                plan_name: 'Family Plan',
                 price: 1300,
                 duration_days: 365, // Yearly
                 features: JSON.stringify(['All subjects included', 'Advanced analytics', 'Priority support', 'Downloadable resources', 'Live classes access']),

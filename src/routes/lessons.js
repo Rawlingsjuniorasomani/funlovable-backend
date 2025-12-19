@@ -52,10 +52,15 @@ router.get('/', authMiddleware, async (req, res) => {
         }
 
         // If teacher wants to see "My Lessons", valid check
-        if (teacherId) {
-            // Lessons linked to modules linked to subjects linked to teacher
-            query += ` AND s.teacher_id = $${pIdx++}`;
-            params.push(teacherId);
+        const effectiveTeacherId = teacherId || (req.user?.role === 'teacher' ? req.user.id : null);
+        if (effectiveTeacherId) {
+            // Lessons linked to modules linked to subjects linked to teacher_subjects
+            query += ` AND EXISTS (
+                SELECT 1
+                FROM teacher_subjects ts
+                WHERE ts.subject_id = s.id AND ts.teacher_id = $${pIdx++}
+            )`;
+            params.push(effectiveTeacherId);
         }
 
         query += ` ORDER BY l.order_index ASC, l.created_at DESC`;
@@ -154,13 +159,19 @@ router.put('/:id', authMiddleware, async (req, res) => {
             return res.status(403).json({ error: 'Only teachers can update lessons' });
         }
 
-        // Check ownership: teachers can only update their own lessons
+        // Check access: teachers can only update lessons in their assigned subjects
         if (req.user.role === 'teacher') {
-            const ownerCheck = await pool.query(
-                'SELECT created_by FROM lessons WHERE id = $1',
-                [req.params.id]
+            const accessCheck = await pool.query(
+                `SELECT 1
+                 FROM lessons l
+                 JOIN modules m ON l.module_id = m.id
+                 JOIN subjects s ON m.subject_id = s.id
+                 JOIN teacher_subjects ts ON ts.subject_id = s.id
+                 WHERE l.id = $1 AND ts.teacher_id = $2
+                 LIMIT 1`,
+                [req.params.id, req.user.id]
             );
-            if (ownerCheck.rows.length === 0 || String(ownerCheck.rows[0].created_by) !== String(req.user.id)) {
+            if (accessCheck.rows.length === 0) {
                 return res.status(403).json({ error: 'Unauthorized: not your lesson' });
             }
         }
@@ -193,13 +204,19 @@ router.delete('/:id', authMiddleware, async (req, res) => {
             return res.status(403).json({ error: 'Only teachers can delete lessons' });
         }
 
-        // Check ownership: teachers can only delete their own lessons
+        // Check access: teachers can only delete lessons in their assigned subjects
         if (req.user.role === 'teacher') {
-            const ownerCheck = await pool.query(
-                'SELECT created_by FROM lessons WHERE id = $1',
-                [req.params.id]
+            const accessCheck = await pool.query(
+                `SELECT 1
+                 FROM lessons l
+                 JOIN modules m ON l.module_id = m.id
+                 JOIN subjects s ON m.subject_id = s.id
+                 JOIN teacher_subjects ts ON ts.subject_id = s.id
+                 WHERE l.id = $1 AND ts.teacher_id = $2
+                 LIMIT 1`,
+                [req.params.id, req.user.id]
             );
-            if (ownerCheck.rows.length === 0 || String(ownerCheck.rows[0].created_by) !== String(req.user.id)) {
+            if (accessCheck.rows.length === 0) {
                 return res.status(403).json({ error: 'Unauthorized: not your lesson' });
             }
         }

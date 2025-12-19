@@ -15,42 +15,80 @@ router.get('/', authMiddleware, requireRole(['admin', 'teacher']), async (req, r
 
     let query = `
       SELECT u.id, u.name, u.email, u.role, u.phone, u.avatar, u.is_approved, u.is_onboarded, u.created_at,
-             u.student_class, u.school,
+             u.student_class, u.school, u.age,
+             MAX(t.bio) as teacher_bio,
+             MAX(t.qualifications) as teacher_qualifications,
+             MAX(t.years_of_experience) as teacher_years_of_experience,
+             MAX(t.address) as teacher_address,
              MAX(COALESCE(ux.total_xp, 0)) as total_xp, MAX(COALESCE(ux.level, 1)) as level,
-             (SELECT COUNT(*) FROM parent_children pc WHERE pc.parent_id::text = u.id)::int as children_count,
+             (SELECT COUNT(*) FROM parent_children pc WHERE pc.parent_id = u.id)::int as children_count,
+             COALESCE(
+               JSONB_AGG(
+                 DISTINCT JSONB_BUILD_OBJECT(
+                   'id', cu.id,
+                   'name', cu.name,
+                   'email', cu.email,
+                   'avatar', cu.avatar,
+                   'student_class', cu.student_class,
+                   'school', cu.school,
+                   'age', cu.age
+                 )
+               ) FILTER (WHERE cu.id IS NOT NULL),
+               '[]'::jsonb
+             ) as children,
              (
                SELECT s.status
                FROM subscriptions s 
-               WHERE s.user_id::text = u.id
+               WHERE s.user_id = u.id
                ORDER BY s.created_at DESC 
                LIMIT 1
              ) as subscription_status,
              (
                SELECT s.expires_at
                FROM subscriptions s 
-               WHERE s.user_id::text = u.id
+               WHERE s.user_id = u.id
                ORDER BY s.created_at DESC 
                LIMIT 1
              ) as subscription_end_date,
              (
                SELECT s.plan
                FROM subscriptions s 
-               WHERE s.user_id::text = u.id
+               WHERE s.user_id = u.id
                ORDER BY s.created_at DESC 
                LIMIT 1
              ) as plan_name,
              (
+               SELECT p.plan_name
+               FROM subscriptions s
+               JOIN plans p ON p.id::text = s.plan::text
+               WHERE s.user_id = u.id
+               ORDER BY s.created_at DESC
+               LIMIT 1
+             ) as plan_display_name,
+             (
                SELECT u2.name 
                FROM parent_children pc2 
-               JOIN users u2 ON pc2.parent_id::text = u2.id 
-               WHERE pc2.child_id::text = u.id
+               JOIN users u2 ON pc2.parent_id = u2.id 
+               WHERE pc2.child_id = u.id
                LIMIT 1
              ) as parent_name,
-             STRING_AGG(DISTINCT s.name, ', ') as subjects_list
+             (
+               SELECT STRING_AGG(DISTINCT s3.name, ', ')
+               FROM teacher_subjects ts3
+               JOIN subjects s3 ON ts3.subject_id = s3.id
+               WHERE ts3.teacher_id = u.id
+             ) as subjects_list,
+             (
+               SELECT STRING_AGG(DISTINCT s4.name, ', ')
+               FROM student_subjects ss4
+               JOIN subjects s4 ON ss4.subject_id = s4.id
+               WHERE ss4.student_id = u.id
+             ) as enrolled_subjects_list
       FROM users u
-      LEFT JOIN teacher_subjects ts ON u.id::text = ts.teacher_id::text
-      LEFT JOIN subjects s ON ts.subject_id = s.id
-      LEFT JOIN user_xp ux ON u.id::text = ux.user_id::text
+      LEFT JOIN teachers t ON t.user_id = u.id
+      LEFT JOIN parent_children pcj ON pcj.parent_id = u.id
+      LEFT JOIN users cu ON cu.id = pcj.child_id
+      LEFT JOIN user_xp ux ON u.id = ux.user_id
       WHERE 1=1
     `;
     const params = [];
@@ -73,10 +111,10 @@ router.get('/', authMiddleware, requireRole(['admin', 'teacher']), async (req, r
     // Transform data to match frontend expectations
     const users = result.rows.map(user => ({
       ...user,
-      children: Array(user.children_count).fill({}), // Mock array length for count
+      children: Array.isArray(user.children) ? user.children : Array(user.children_count).fill({}),
       subscription: {
         status: user.subscription_status || 'inactive',
-        plan: user.plan_name || 'None',
+        plan: user.plan_display_name || user.plan_name || 'None',
         endDate: user.subscription_end_date
       },
       createdAt: user.created_at,
@@ -85,7 +123,7 @@ router.get('/', authMiddleware, requireRole(['admin', 'teacher']), async (req, r
     res.json(users);
   } catch (error) {
     console.error('Get users error:', error);
-    res.status(500).json({ error: 'Failed to get users' });
+    res.status(500).json({ error: 'Failed to get users', details: error.message });
   }
 });
 
@@ -367,6 +405,17 @@ router.post('/:id/children', authMiddleware, async (req, res) => {
       const passwordHash = await bcrypt.hash('child123', 10);
       // Use provided email or generate a placeholder
       const childEmail = req.body.email || `child_${Date.now()}@edulearn.com`;
+
+      // Check if email already exists
+      if (req.body.email) {
+        const emailCheck = await pool.query(
+          'SELECT id FROM users WHERE email = $1',
+          [childEmail]
+        );
+        if (emailCheck.rows.length > 0) {
+          return res.status(400).json({ error: 'Email already registered' });
+        }
+      }
 
       const childResult = await pool.query(`
           INSERT INTO users (name, email, password_hash, role, is_approved, is_onboarded, school, age, student_class, phone)

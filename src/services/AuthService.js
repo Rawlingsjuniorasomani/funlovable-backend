@@ -6,6 +6,7 @@ const pool = require('../db/pool');
 const NotificationModel = require('../models/NotificationModel');
 const SubscriptionModel = require('../models/SubscriptionModel');
 const ParentService = require('./ParentService');
+const SmsService = require('./SmsService');
 
 class AuthService {
     static async register({ name, email, password, role, phone, school, age, studentClass, ...rest }) {
@@ -84,14 +85,15 @@ class AuthService {
             }
 
             // 2. Check for active subscription
-            const subCheck = await pool.query(
-                "SELECT 1 FROM subscriptions WHERE user_id = $1 AND status = 'active' AND expires_at > NOW() LIMIT 1",
-                [user.id]
-            );
+            // const subCheck = await pool.query(
+            //     "SELECT 1 FROM subscriptions WHERE user_id = $1 AND status = 'active' AND expires_at > NOW() LIMIT 1",
+            //     [user.id]
+            // );
 
-            if (subCheck.rows.length === 0) {
-                throw new Error('Registration incomplete: No active subscription.');
-            }
+            // if (subCheck.rows.length === 0) {
+            //     // Allow login even without active subscription, so they can renew/pay
+            //     // throw new Error('Registration incomplete: No active subscription.');
+            // }
         }
 
         const token = this.generateToken(user);
@@ -102,7 +104,7 @@ class AuthService {
             const subscription = await SubscriptionModel.findByParent(user.id);
             if (subscription) {
                 user.subscription = {
-                    plan: subscription.plan_id,
+                    plan: subscription.plan,
                     status: subscription.status,
                     expiresAt: subscription.expires_at
                 };
@@ -178,15 +180,28 @@ class AuthService {
         const OtpService = require('./OtpService');
         const code = await OtpService.generateOTP(user.id, 'password_reset');
 
-        // In production, send email here.
-        // For dev, we return it in the message or log it.
-        console.log(`[PASSWORD RESET] OTP for ${email}: ${code}`);
-
-        if (process.env.NODE_ENV === 'development') {
-            return { message: 'OTP sent to your email.', devCode: code };
+        if (!user.phone) {
+            // Don't reveal too much detail; but frontend should show a clear message.
+            throw new Error('No phone number found on this account');
         }
 
-        return { message: 'OTP sent to your email.' };
+        try {
+            await SmsService.sendSMS({
+                recipients: user.phone,
+                message: `Your password reset code is ${code}. It expires in 10 minutes.`
+            });
+        } catch (err) {
+            console.error('Failed to send reset OTP via SMS:', err?.response?.data || err?.message || err);
+            if (process.env.NODE_ENV !== 'development') {
+                throw new Error('Failed to send OTP');
+            }
+        }
+
+        if (process.env.NODE_ENV === 'development') {
+            return { message: 'OTP sent to your phone.', devCode: code };
+        }
+
+        return { message: 'OTP sent to your phone.' };
     }
 
     static async resetPassword(email, otp, newPassword) {

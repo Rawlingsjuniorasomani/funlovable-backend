@@ -8,8 +8,8 @@ const router = express.Router();
 // Current logic in frontend often expects /modules?subjectId=... or /subjects/:id/modules
 // Let's stick to simple CRUD.
 
-router.get('/', ModuleController.getAll);
-router.get('/subject/:subjectId', ModuleController.getBySubject);
+router.get('/', authMiddleware, ModuleController.getAll);
+router.get('/subject/:subjectId', authMiddleware, ModuleController.getBySubject);
 
 router.post('/', authMiddleware, requireRole(['admin', 'teacher']), ModuleController.create);
 router.put('/:id', authMiddleware, requireRole(['admin', 'teacher']), ModuleController.update);

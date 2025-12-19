@@ -36,12 +36,10 @@ class QuizModel {
 
     static async getAllQuizzes(filters = {}) {
         let query = `
-            SELECT q.*, l.title as lesson_title, m.title as module_title, s.name as subject_name,
+            SELECT q.*, s.name as subject_name,
                    (SELECT COUNT(*) FROM quiz_questions WHERE quiz_id = q.id) as question_count
             FROM quizzes q
-            LEFT JOIN lessons l ON q.lesson_id = l.id
-            LEFT JOIN modules m ON q.module_id = m.id
-            LEFT JOIN subjects s ON m.subject_id = s.id
+            LEFT JOIN subjects s ON q.subject_id = s.id
         `;
         const params = [];
 

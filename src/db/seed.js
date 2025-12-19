@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const pool = require('./pool');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
@@ -49,12 +50,22 @@ async function seed() {
     ];
 
     for (const subject of subjects) {
+      const existingSubject = await pool.query(
+        'SELECT id FROM subjects WHERE LOWER(name) = LOWER($1) LIMIT 1',
+        [subject.name]
+      );
+
+      // If the subject already exists, do not create another copy or reseed its content.
+      if (existingSubject.rows.length > 0) {
+        continue;
+      }
+
       const subjectId = uuidv4();
-      await pool.query(`
-        INSERT INTO subjects (id, name, description, icon, color, grade_level, teacher_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        ON CONFLICT DO NOTHING
-      `, [subjectId, subject.name, subject.description, subject.icon, subject.color, subject.grade, teacherId]);
+      await pool.query(
+        `INSERT INTO subjects (id, name, description, icon, color, grade_level, teacher_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [subjectId, subject.name, subject.description, subject.icon, subject.color, subject.grade, teacherId]
+      );
 
       // Create sample module for each subject
       const moduleId = uuidv4();

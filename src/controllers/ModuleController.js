@@ -8,18 +8,40 @@ class ModuleController {
                 const modules = await ModuleService.getModulesBySubject(subjectId);
                 return res.json(modules);
             }
-            // Return all modules for admin
+
             const pool = require('../db/pool');
-            const result = await pool.query(`
-                SELECT m.*, 
-                       COUNT(DISTINCT l.id) as lesson_count,
-                       SUM(l.duration_minutes) as duration_minutes
-                FROM modules m
-                LEFT JOIN lessons l ON m.id = l.module_id
-                GROUP BY m.id
-                ORDER BY m.created_at DESC
-            `);
-            return res.json(result.rows);
+
+            // Return scoped modules by role
+            if (req.user?.role === 'teacher') {
+                const result = await pool.query(`
+                    SELECT m.*, 
+                           COUNT(DISTINCT l.id) as lesson_count,
+                           SUM(l.duration_minutes) as duration_minutes
+                    FROM modules m
+                    JOIN subjects s ON m.subject_id = s.id
+                    JOIN teacher_subjects ts ON ts.subject_id = s.id
+                    LEFT JOIN lessons l ON m.id = l.module_id
+                    WHERE ts.teacher_id = $1
+                    GROUP BY m.id
+                    ORDER BY m.created_at DESC
+                `, [req.user.id]);
+                return res.json(result.rows);
+            }
+
+            if (req.user?.role === 'admin') {
+                const result = await pool.query(`
+                    SELECT m.*, 
+                           COUNT(DISTINCT l.id) as lesson_count,
+                           SUM(l.duration_minutes) as duration_minutes
+                    FROM modules m
+                    LEFT JOIN lessons l ON m.id = l.module_id
+                    GROUP BY m.id
+                    ORDER BY m.created_at DESC
+                `);
+                return res.json(result.rows);
+            }
+
+            return res.json([]);
         } catch (error) {
             console.error(error);
             res.status(500).json({ error: 'Failed to fetch modules' });

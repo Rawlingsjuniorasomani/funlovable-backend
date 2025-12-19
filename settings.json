@@ -1,0 +1,12 @@
+{
+  "platformName": "Funlovable",
+  "supportEmail": "support@funlovable.com",
+  "contactPhone": "+1 (555) 123-4567",
+  "logoUrl": "",
+  "primaryColor": "#6366f1",
+  "emailNotifications": true,
+  "newRegistrationAlerts": true,
+  "paymentAlerts": true,
+  "twoFactorAuth": false,
+  "teacherApproval": true
+}

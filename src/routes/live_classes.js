@@ -11,7 +11,7 @@ router.get('/', authMiddleware, async (req, res) => {
       SELECT lc.*, s.name as subject_name, u.name as teacher_name
       FROM live_classes lc
       LEFT JOIN subjects s ON lc.subject_id = s.id
-    LEFT JOIN users u ON lc.teacher_id::text = u.id
+      LEFT JOIN users u ON lc.teacher_id = u.id
       WHERE 1=1
     `;
         const params = [];
@@ -31,8 +31,9 @@ router.get('/', authMiddleware, async (req, res) => {
 
         // Student Content Filtering: Only show classes for subjects the student is enrolled in
         if (req.user.role === 'student') {
+            params.push(req.user.id);
             query += ` AND lc.subject_id IN (
-                SELECT subject_id FROM student_subjects WHERE student_id = '${req.user.id}'
+                SELECT subject_id FROM student_subjects WHERE student_id = $${params.length}
             )`;
         }
 
@@ -42,7 +43,7 @@ router.get('/', authMiddleware, async (req, res) => {
         res.json(result.rows);
     } catch (error) {
         console.error('Get live classes error:', error);
-        res.status(500).json({ error: 'Failed to fetch live classes' });
+        res.status(500).json({ error: 'Failed to fetch live classes', details: error.message });
     }
 });
 

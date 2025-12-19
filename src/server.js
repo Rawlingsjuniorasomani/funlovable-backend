@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -15,7 +16,7 @@ const server = http.createServer(app);
 // Socket.io setup
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://lovablelearns.vercel.app'] : ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://lovablelearns.vercel.app'],
+    origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://funlovable.vercel.app'] : ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://funlovable.vercel.app'],
     credentials: true,
     methods: ["GET", "POST"]
   }
@@ -150,7 +151,7 @@ io.on('connection', (socket) => {
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://lovablelearns.vercel.app'] : ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://lovablelearns.vercel.app'],
+  origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://funlovable.vercel.app'] : ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://funlovable.vercel.app'],
   credentials: true
 }));
 app.use(cookieParser());
@@ -185,10 +186,13 @@ app.use('/api/messaging', require('./routes/messaging'));
 app.use('/api/behaviour', require('./routes/behaviour'));
 app.use('/api/progress', require('./routes/progress'));
 app.use('/api/plans', require('./routes/plans'));
+app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/live-classes', require('./routes/live_classes'));
 app.use('/api/teachers', require('./routes/teachers'));
 app.use('/api/rewards', require('./routes/rewards'));
+app.use('/api', require('./routes/teacher_subjects'));
+app.use('/api/sms', require('./routes/sms'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -206,8 +210,18 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔌 Socket.io initialized`);
-});
+const startServer = async () => {
+  try {
+    await pool.query('SELECT 1');
+    server.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔌 Socket.io initialized`);
+    });
+  } catch (err) {
+    console.error('❌ Failed to connect to PostgreSQL database', err?.message || err);
+    process.exit(1);
+  }
+};
+
+startServer();

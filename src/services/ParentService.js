@@ -2,9 +2,66 @@ const pool = require('../db/pool');
 const UserModel = require('../models/UserModel');
 const bcrypt = require('bcryptjs');
 
+class HttpError extends Error {
+    constructor(message, statusCode, code, meta) {
+        super(message);
+        this.statusCode = statusCode;
+        this.code = code;
+        this.meta = meta;
+    }
+}
+
 class ParentService {
     static async addChild(parentId, childData) {
         // childData: { name, age, grade, phone, subjects (array of IDs) }
+
+        // Enforce child limits based on current subscription/plan
+        const countRes = await pool.query(
+            'SELECT COUNT(*)::int as count FROM parent_children WHERE parent_id = $1',
+            [parentId]
+        );
+        const currentCount = Number(countRes.rows[0]?.count || 0);
+
+        const subRes = await pool.query(
+            `SELECT plan
+             FROM subscriptions
+             WHERE user_id = $1 AND status = 'active' AND expires_at > NOW()
+             ORDER BY created_at DESC
+             LIMIT 1`,
+            [parentId]
+        );
+
+        let maxChildren = 1;
+        const planId = subRes.rows[0]?.plan || null;
+
+        if (planId) {
+            const planRes = await pool.query(
+                'SELECT plan_name, price, features FROM plans WHERE id = $1',
+                [planId]
+            );
+
+            const plan = planRes.rows[0];
+            const planName = (plan?.plan_name || '').toLowerCase();
+            const price = plan?.price != null ? Number(plan.price) : null;
+            const features = plan?.features;
+
+            if (features && typeof features === 'object' && !Array.isArray(features) && typeof features.maxChildren === 'number') {
+                maxChildren = Number(features.maxChildren);
+            } else if (planName.includes('family')) {
+                maxChildren = 4;
+            } else if (price != null) {
+                maxChildren = price >= 1300 ? 4 : 1;
+            }
+        }
+
+        if (currentCount >= maxChildren) {
+            throw new HttpError(
+                `Plan limit reached. Your plan allows max ${maxChildren} child${maxChildren === 1 ? '' : 'ren'}.`,
+                403,
+                'PLAN_LIMIT_REACHED',
+                { maxChildren, currentCount }
+            );
+        }
 
         // 1. Try to find existing student by phone if provided
         if (childData.phone) {

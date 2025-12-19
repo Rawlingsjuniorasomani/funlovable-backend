@@ -39,6 +39,36 @@ router.post('/:id/enroll', authMiddleware, requireRole(['student']), async (req,
             [studentId, subjectId]
         );
 
+        // Notify Teachers
+        try {
+            const pool = require('../db/pool');
+            const NotificationModel = require('../models/NotificationModel');
+
+            // Find teachers for this subject
+            const teachersResult = await pool.query(
+                'SELECT teacher_id FROM teacher_subjects WHERE subject_id = $1',
+                [subjectId]
+            );
+
+            const subjectResult = await pool.query('SELECT name FROM subjects WHERE id = $1', [subjectId]);
+            const subjectName = subjectResult.rows[0]?.name || 'a subject';
+            const studentName = req.user.name;
+
+            const notificationPromises = teachersResult.rows.map(row =>
+                NotificationModel.create({
+                    user_id: row.teacher_id,
+                    type: 'info',
+                    title: 'New Student Enrollment',
+                    message: `${studentName} has enrolled in your subject: ${subjectName}`,
+                    data: { studentId, subjectId }
+                })
+            );
+
+            await Promise.all(notificationPromises);
+        } catch (notifError) {
+            console.error('Failed to notify teachers:', notifError);
+        }
+
         res.json({ message: 'Enrolled successfully' });
     } catch (error) {
         console.error('Enroll error:', error);

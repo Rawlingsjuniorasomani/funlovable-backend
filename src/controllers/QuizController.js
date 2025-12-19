@@ -12,6 +12,9 @@ class QuizController {
       res.json(quizzes);
     } catch (error) {
       console.error('Get all quizzes error:', error);
+      if (process.env.NODE_ENV === 'development') {
+        return res.status(500).json({ error: 'Failed to fetch quizzes', details: error?.message || String(error) });
+      }
       res.status(500).json({ error: 'Failed to fetch quizzes' });
     }
   }

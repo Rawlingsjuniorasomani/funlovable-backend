@@ -126,7 +126,9 @@ router.get('/teacher', authMiddleware, requireRole('teacher'), async (req, res) 
 
     // Subjects taught
     const subjectsResult = await pool.query(`
-      SELECT COUNT(*) as count FROM subjects WHERE teacher_id = $1
+      SELECT COUNT(DISTINCT ts.subject_id) as count
+      FROM teacher_subjects ts
+      WHERE ts.teacher_id = $1
     `, [teacherId]);
 
     // Total students in classes
@@ -136,7 +138,8 @@ router.get('/teacher', authMiddleware, requireRole('teacher'), async (req, res) 
       INNER JOIN lessons l ON up.lesson_id = l.id
       INNER JOIN modules m ON l.module_id = m.id
       INNER JOIN subjects s ON m.subject_id = s.id
-      WHERE s.teacher_id = $1
+      JOIN teacher_subjects ts ON ts.subject_id = s.id
+      WHERE ts.teacher_id = $1
     `, [teacherId]);
 
     // Quiz performance in teacher's subjects
@@ -148,7 +151,8 @@ router.get('/teacher', authMiddleware, requireRole('teacher'), async (req, res) 
       INNER JOIN quizzes q ON qa.quiz_id = q.id
       INNER JOIN modules m ON q.module_id = m.id
       INNER JOIN subjects s ON m.subject_id = s.id
-      WHERE s.teacher_id = $1
+      JOIN teacher_subjects ts ON ts.subject_id = s.id
+      WHERE ts.teacher_id = $1
     `, [teacherId]);
 
     res.json({
@@ -244,7 +248,7 @@ router.get('/parent', authMiddleware, async (req, res) => {
 
     // 1. Get children
     const childrenResult = await pool.query(`
-      SELECT u.id, u.name, u.avatar
+      SELECT u.id, u.name, u.avatar, u.student_class as grade
       FROM users u
       INNER JOIN parent_children pc ON u.id = pc.child_id
       WHERE pc.parent_id = $1
@@ -289,27 +293,34 @@ router.get('/parent', authMiddleware, async (req, res) => {
           WHERE user_id = $1 AND is_completed = true
         `, [child.id]);
 
-        // Course Progress (Completion rate) - simplified as % of total modules/lessons available?
-        // For now, let's assume 100 lessons is "100%" or just use a placeholder calculation
-        // A better way: Count distinct lessons completed / Total lessons in enrolled subjects
-        // We'll stick to a mock calculation based on completed_lessons for now to avoid complex joins
+        // Course Progress (Completion rate)
         const totalLessons = 50; // hardcoded denominator for now
         const completed = parseInt(progressResult.rows[0].completed_lessons);
+        const totalTime = parseInt(progressResult.rows[0].total_time);
         const progress = Math.min(Math.round((completed / totalLessons) * 100), 100);
 
         // Quiz Stats (Avg Score)
         const quizResult = await pool.query(`
           SELECT 
-            COALESCE(AVG(percentage), 0) as average_score, 
+            COALESCE(AVG(score), 0) as average_score, 
             COUNT(*) as attempts
           FROM quiz_attempts WHERE user_id = $1
         `, [child.id]);
+
+        const quizStats = {
+          average_score: Math.round(parseFloat(quizResult.rows[0].average_score)),
+          attempts: parseInt(quizResult.rows[0].attempts)
+        };
 
         // XP
         const xpResult = await pool.query(
           'SELECT total_xp, level FROM user_xp WHERE user_id = $1',
           [child.id]
         );
+        const xp = {
+          total_xp: xpResult.rows[0]?.total_xp || 0,
+          level: xpResult.rows[0]?.level || 1
+        };
 
         // Streak Calculation (Consecutive days with activity in last 30 days)
         const activityDatesResult = await pool.query(`
@@ -348,8 +359,12 @@ router.get('/parent', authMiddleware, async (req, res) => {
         return {
           ...child,
           progress,
-          avgScore: Math.round(parseFloat(quizResult.rows[0].average_score)),
-          totalXP: xpResult.rows[0]?.total_xp || 0,
+          quizStats,
+          avgScore: quizStats.average_score, // Support ParentAnalytics which expects flat avgScore
+          xp,
+          totalXP: xp.total_xp, // Support ParentAnalytics which expects flat totalXP
+          completedLessons: completed,
+          totalTime,
           streak
         };
       })
@@ -366,7 +381,7 @@ router.get('/parent', authMiddleware, async (req, res) => {
       FROM (
         SELECT generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, '1 day')::date as day
       ) d
-      CROSS JOIN unnest($1::int[]) as child_id
+      CROSS JOIN unnest($1::uuid[]) as child_id
       JOIN users u ON u.id = child_id
       LEFT JOIN user_progress up ON DATE(up.completed_at) = d.day AND up.user_id = child_id
       GROUP BY d.day, u.name
@@ -403,13 +418,13 @@ router.get('/parent', authMiddleware, async (req, res) => {
       SELECT 
         s.name as subject,
         u.name as child_name,
-        AVG(qa.percentage) as score
+        AVG(qa.score) as score
       FROM quiz_attempts qa
       JOIN quizzes q ON qa.quiz_id = q.id
       JOIN modules m ON q.module_id = m.id
       JOIN subjects s ON m.subject_id = s.id
-      JOIN users u ON qa.user_id::text = u.id
-      WHERE qa.user_id = ANY($1)
+      JOIN users u ON qa.user_id = u.id
+      WHERE qa.user_id = ANY($1::uuid[])
       GROUP BY s.name, u.name
     `, [childIds]);
 
@@ -426,21 +441,21 @@ router.get('/parent', authMiddleware, async (req, res) => {
       SELECT 'lesson' as type, l.title as name, up.completed_at as date, u.name as student_name
       FROM user_progress up
       INNER JOIN lessons l ON up.lesson_id = l.id
-      INNER JOIN users u ON up.user_id::text = u.id
-      WHERE up.user_id = ANY($1) AND up.is_completed = true
+      INNER JOIN users u ON up.user_id = u.id
+      WHERE up.user_id = ANY($1::uuid[]) AND up.is_completed = true
       UNION ALL
       SELECT 'quiz' as type, q.title as name, qa.completed_at as date, u.name as student_name
       FROM quiz_attempts qa
       INNER JOIN quizzes q ON qa.quiz_id = q.id
-      INNER JOIN users u ON qa.user_id::text = u.id
-      WHERE qa.user_id = ANY($1)
+      INNER JOIN users u ON qa.user_id = u.id
+      WHERE qa.user_id = ANY($1::uuid[])
       ORDER BY date DESC LIMIT 5
     `, [childIds]);
 
     // Calculate overall averages
     const totalWeeklyTime = weeklyActivityResult.rows.reduce((acc, curr) => acc + parseInt(curr.minutes), 0);
     const avgChildScore = childrenAnalytics.length > 0
-      ? Math.round(childrenAnalytics.reduce((acc, c) => acc + c.avgScore, 0) / childrenAnalytics.length)
+      ? Math.round(childrenAnalytics.reduce((acc, c) => acc + c.quizStats.average_score, 0) / childrenAnalytics.length)
       : 0;
 
     res.json({

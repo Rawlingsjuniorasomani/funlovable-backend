@@ -4,7 +4,16 @@ class SubjectController {
     static async getAll(req, res) {
         try {
             const subjects = await SubjectService.getAllSubjects();
-            res.json(subjects);
+            const seen = new Set();
+            const unique = [];
+            for (const s of Array.isArray(subjects) ? subjects : []) {
+                const key = String(s?.name || '').trim().toLowerCase();
+                if (!key) continue;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                unique.push(s);
+            }
+            res.json(unique);
         } catch (error) {
             console.error(error);
             res.status(500).json({ error: 'Failed to fetch subjects' });

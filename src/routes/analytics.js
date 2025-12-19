@@ -224,7 +224,7 @@ router.get('/student', authMiddleware, async (req, res) => {
       INNER JOIN lessons l ON up.lesson_id = l.id
       INNER JOIN modules m ON l.module_id = m.id
       WHERE up.user_id = $1
-      ORDER BY up.updated_at DESC LIMIT 1
+      ORDER BY up.completed_at DESC LIMIT 1
     `, [userId]);
 
     res.json({

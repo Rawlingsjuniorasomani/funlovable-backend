@@ -35,6 +35,18 @@ class PaymentService {
             throw new Error('Email already registered');
         }
 
+        // Validate planId is a UUID (basic check)
+        if (!planId || typeof planId !== 'string') {
+            throw new Error('Invalid plan ID provided');
+        }
+
+        // Basic UUID format validation (8-4-4-4-12 hex characters)
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(planId)) {
+            console.error(`[PaymentService.initializeRegistration] Invalid plan ID format: "${planId}". Expected UUID format.`);
+            throw new Error(`Invalid plan ID format. Please select a valid subscription plan.`);
+        }
+
         const planRes = await pool.query('SELECT id, price, paystack_plan_code FROM plans WHERE id = $1', [planId]);
         if (planRes.rows.length === 0) {
             throw new Error('Plan not found');
@@ -138,13 +150,13 @@ class PaymentService {
             if (!paystackSecretKey) {
                 throw new Error('Paystack secret key not configured');
             }
-            
+
             console.log(`[PaymentService.verifyPayment] Looking up pending registration for reference: ${reference}`);
-            
+
             // Quick debug: check if the record exists at all in DB
             const allPending = await pool.query('SELECT reference, email, role, status FROM pending_registrations ORDER BY created_at DESC LIMIT 5');
             console.log(`[PaymentService.verifyPayment] Recent pending registrations in DB:`, allPending.rows.map(r => ({ ref: r.reference, email: r.email, role: r.role, status: r.status })));
-            
+
             // 1. Verify with Paystack
             const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
                 headers: {
@@ -171,11 +183,11 @@ class PaymentService {
                         status: pending?.status,
                         reference: reference
                     });
-                    
+
                     if (!pending) {
                         console.warn(`[PaymentService.verifyPayment] WARN: No pending registration found for reference ${reference}. This means initializeRegistration may not have saved to DB.`);
                     }
-                    
+
                     if (pending && pending.status !== 'completed') {
                         const client = await pool.connect();
                         try {

@@ -342,14 +342,16 @@ class PaymentService {
                                     const subjects = child.subjects;
                                     if (Array.isArray(subjects) && subjects.length > 0) {
                                         for (const subjectId of subjects) {
-                                            // Basic UUID-ish check to avoid inserting non-IDs
-                                            if (typeof subjectId === 'string' && subjectId.length > 10) {
+                                            // Only insert valid UUID subject IDs to avoid SQL errors
+                                            if (typeof subjectId === 'string' && uuidRegex.test(subjectId)) {
                                                 await client.query(
                                                     `INSERT INTO student_subjects (student_id, subject_id)
                                                      VALUES ($1, $2)
                                                      ON CONFLICT DO NOTHING`,
                                                     [childUser.id, subjectId]
                                                 );
+                                            } else {
+                                                console.warn(`[PaymentService.verifyPayment] Skipping invalid subject id for child enrollment: ${subjectId}`);
                                             }
                                         }
                                     }

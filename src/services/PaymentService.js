@@ -432,13 +432,25 @@ class PaymentService {
                     const planId = paymentMetadata.plan_id || data.metadata?.plan_id || null;
 
                     let durationDays = 30;
+
+                    // Safeguard: Ensure planId is a valid UUID before querying
+                    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                    if (planId && !uuidRegex.test(planId)) {
+                        console.warn(`[PaymentService.verifyPayment] Warning: Invalid plan ID format "${planId}" in upgrade flow. Ignoring plan lookup.`);
+                        planId = null;
+                    }
+
                     if (planId) {
-                        const planRes = await pool.query(
-                            'SELECT duration_days FROM plans WHERE id = $1',
-                            [planId]
-                        );
-                        if (planRes.rows.length > 0 && planRes.rows[0].duration_days) {
-                            durationDays = Number(planRes.rows[0].duration_days);
+                        try {
+                            const planRes = await pool.query(
+                                'SELECT duration_days FROM plans WHERE id = $1',
+                                [planId]
+                            );
+                            if (planRes.rows.length > 0 && planRes.rows[0].duration_days) {
+                                durationDays = Number(planRes.rows[0].duration_days);
+                            }
+                        } catch (err) {
+                            console.error(`[PaymentService.verifyPayment] Plan lookup failed for id ${planId} in upgrade flow:`, err.message);
                         }
                     }
 

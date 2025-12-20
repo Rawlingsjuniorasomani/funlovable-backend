@@ -193,7 +193,22 @@ class PaymentService {
                         try {
                             await client.query('BEGIN');
 
-                            let planId = pending.plan_id || data.metadata?.plan_id || null;
+                            // Re-fetch with row lock to handle race conditions (e.g. webhook vs frontend redirect)
+                            const lockedRes = await client.query('SELECT * FROM pending_registrations WHERE reference = $1 FOR UPDATE', [reference]);
+                            const lockedPending = lockedRes.rows[0];
+
+                            if (!lockedPending || lockedPending.status === 'completed') {
+                                await client.query('COMMIT');
+                                console.log(`[PaymentService.verifyPayment] Pending registration already processed (race condition handled).`);
+                                // Determine user from email if needed, or just return success
+                                // We need to return the user/token if possible, but if it was just processed, we might not have the user object handy easily without querying.
+                                // However, usually the frontend just needs success status to redirect.
+                                // If token is missing, frontend might redirect to login. That is acceptable for a race condition edge case.
+                                return { status: 'success', data: data };
+                            }
+
+                            // Use the locked record for data consistency
+                            let planId = lockedPending.plan_id || data.metadata?.plan_id || null;
                             let durationDays = 30;
 
                             // Safeguard: Ensure planId is a valid UUID before querying
@@ -215,7 +230,7 @@ class PaymentService {
                                 }
                             }
 
-                            const registrationPayload = pending.payload && typeof pending.payload === 'object' ? pending.payload : {};
+                            const registrationPayload = lockedPending.payload && typeof lockedPending.payload === 'object' ? lockedPending.payload : {};
 
                             console.log(`[PaymentService.verifyPayment] Registration payload from pending record:`, {
                                 name: registrationPayload.name,
@@ -225,7 +240,7 @@ class PaymentService {
                                 password: !!registrationPayload.password
                             });
 
-                            const role = pending.role;
+                            const role = lockedPending.role;
                             const password = registrationPayload.password;
                             if (!password) {
                                 throw new Error('Missing registration password');
@@ -234,7 +249,7 @@ class PaymentService {
                             const passwordHash = await bcrypt.hash(password, 10);
 
                             // Check if parent email already exists (in case of race condition)
-                            const checkParent = await client.query('SELECT id FROM users WHERE email = $1', [pending.email]);
+                            const checkParent = await client.query('SELECT id FROM users WHERE email = $1', [lockedPending.email]);
                             if (checkParent.rows.length > 0) {
                                 throw new Error('Email already registered');
                             }
@@ -245,7 +260,7 @@ class PaymentService {
                                  RETURNING id, name, email, role, is_approved, is_onboarded`,
                                 [
                                     registrationPayload.name,
-                                    pending.email,
+                                    lockedPending.email,
                                     passwordHash,
                                     role,
                                     registrationPayload.phone || null,
@@ -259,7 +274,7 @@ class PaymentService {
                                     code: err.code,
                                     detail: err.detail,
                                     name: registrationPayload.name,
-                                    email: pending.email,
+                                    email: lockedPending.email,
                                     role: role
                                 });
                                 throw err;
@@ -360,7 +375,7 @@ class PaymentService {
                             await client.query(
                                 `INSERT INTO payments (user_id, subscription_id, amount, currency, status, payment_method, reference, paystack_reference, metadata)
                                  VALUES ($1, NULL, $2, 'GHS', 'success', 'paystack', $3, NULL, $4::jsonb)`,
-                                [user.id, pending.amount, reference, JSON.stringify({ plan_id: planId, flow: 'registration' })]
+                                [user.id, lockedPending.amount, reference, JSON.stringify({ plan_id: planId, flow: 'registration' })]
                             );
 
                             await client.query(
@@ -370,7 +385,7 @@ class PaymentService {
                             await client.query(
                                 `INSERT INTO subscriptions (user_id, plan, amount, status, starts_at, expires_at, payment_reference)
                                  VALUES ($1, $2, $3, 'active', $4, $5, $6)`,
-                                [user.id, planType, pending.amount, startDate, endDate, reference]
+                                [user.id, planType, lockedPending.amount, startDate, endDate, reference]
                             );
 
                             await client.query(

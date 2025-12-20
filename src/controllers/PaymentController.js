@@ -18,8 +18,14 @@ class PaymentController {
             if (result && result.token) {
                 console.log(`[PaymentController.verify] Existing request cookies:`, req.cookies);
                 // Clear any existing token cookie first to avoid stale session being reused
+                // Important: clear with same options used for setting (path/sameSite/secure)
+                const cookieOptions = {
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                    path: '/'
+                };
                 try {
-                    res.clearCookie('token');
+                    res.clearCookie('token', cookieOptions);
                 } catch (e) {
                     console.warn('Failed to clear existing token cookie:', e?.message || e);
                 }
@@ -34,6 +40,18 @@ class PaymentController {
                 });
             } else {
                 console.warn('[PaymentController.verify] No token returned from verifyPayment');
+
+                // Still clear any stale cookie so a previous admin session can't hijack post-payment routing
+                const cookieOptions = {
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                    path: '/'
+                };
+                try {
+                    res.clearCookie('token', cookieOptions);
+                } catch (e) {
+                    console.warn('Failed to clear token cookie when no token returned:', e?.message || e);
+                }
             }
             
             res.json(result);

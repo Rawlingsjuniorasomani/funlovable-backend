@@ -30,6 +30,10 @@ class PaymentService {
             throw new Error('Paystack secret key not configured');
         }
 
+        if (role !== 'parent' && role !== 'student') {
+            throw new Error('Invalid role for registration');
+        }
+
         const existingUser = await UserModel.findByEmail(email);
         if (existingUser) {
             throw new Error('Email already registered');
@@ -66,7 +70,7 @@ class PaymentService {
             metadata: {
                 flow: 'registration',
                 plan_id: planId,
-                role: 'parent' // 🔥 MUST be parent per user request
+                role
             }
         };
 
@@ -247,7 +251,11 @@ class PaymentService {
                                 password: !!registrationPayload.password
                             });
 
-                            const role = lockedPending.role || 'parent'; // Fix 4: Never default to admin, safe fallback
+                            const role = lockedPending.role || 'parent';
+                            // Hard security: payment registration flow must never create admin users
+                            if (role !== 'parent' && role !== 'student') {
+                                throw new Error('Invalid role for registration');
+                            }
                             const password = registrationPayload.password;
                             if (!password) {
                                 throw new Error('Missing registration password');
@@ -381,6 +389,24 @@ class PaymentService {
                                 }
                             }
 
+                            if (!planId) {
+                                try {
+                                    const planByAmountRes = await client.query(
+                                        'SELECT id FROM plans WHERE price = $1 ORDER BY created_at DESC LIMIT 1',
+                                        [lockedPending.amount]
+                                    );
+                                    if (planByAmountRes.rows.length > 0 && planByAmountRes.rows[0].id) {
+                                        planId = planByAmountRes.rows[0].id;
+                                    }
+                                } catch (err) {
+                                    console.warn(`[PaymentService.verifyPayment] Plan ID fallback lookup by amount failed: ${err.message}`);
+                                }
+                            }
+
+                            if (!planId) {
+                                throw new Error('Missing plan ID for subscription');
+                            }
+
                             await client.query(
                                 `INSERT INTO payments (user_id, subscription_id, amount, currency, status, payment_method, reference, paystack_reference, metadata)
                                  VALUES ($1, NULL, $2, 'GHS', 'success', 'paystack', $3, NULL, $4::jsonb)`,
@@ -394,7 +420,7 @@ class PaymentService {
                             await client.query(
                                 `INSERT INTO subscriptions (user_id, plan, amount, status, starts_at, expires_at, payment_reference)
                                  VALUES ($1, $2, $3, 'active', $4, $5, $6)`,
-                                [user.id, planType, lockedPending.amount, startDate, endDate, reference]
+                                [user.id, planId, lockedPending.amount, startDate, endDate, reference]
                             );
 
                             await client.query(
@@ -438,7 +464,7 @@ class PaymentService {
                 if (payment) {
                     console.log(`[PaymentService.verifyPayment] Handling upgrade flow for existing payment. User ID: ${payment.user_id}`);
                     const paymentMetadata = payment.metadata && typeof payment.metadata === 'object' ? payment.metadata : {};
-                    const planId = paymentMetadata.plan_id || data.metadata?.plan_id || null;
+                    let planId = paymentMetadata.plan_id || data.metadata?.plan_id || null;
 
                     let durationDays = 30;
 

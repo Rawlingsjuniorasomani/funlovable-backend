@@ -65,7 +65,8 @@ class PaymentService {
             callback_url: callbackUrl,
             metadata: {
                 flow: 'registration',
-                plan_id: planId
+                plan_id: planId,
+                role: 'parent' // 🔥 MUST be parent per user request
             }
         };
 

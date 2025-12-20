@@ -201,10 +201,16 @@ class PaymentService {
                             if (!lockedPending || lockedPending.status === 'completed') {
                                 await client.query('COMMIT');
                                 console.log(`[PaymentService.verifyPayment] Pending registration already processed (race condition handled).`);
-                                // Determine user from email if needed, or just return success
-                                // We need to return the user/token if possible, but if it was just processed, we might not have the user object handy easily without querying.
-                                // However, usually the frontend just needs success status to redirect.
-                                // If token is missing, frontend might redirect to login. That is acceptable for a race condition edge case.
+
+                                // Fix: Retrieve the already created user to return token/session
+                                const existingUserRes = await pool.query('SELECT * FROM users WHERE email = $1', [pending.email]);
+                                const existingUser = existingUserRes.rows[0];
+
+                                if (existingUser) {
+                                    const token = AuthService.generateToken(existingUser);
+                                    return { status: 'success', data: data, user: existingUser, token };
+                                }
+
                                 return { status: 'success', data: data };
                             }
 

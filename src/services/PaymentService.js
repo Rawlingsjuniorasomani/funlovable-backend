@@ -193,12 +193,25 @@ class PaymentService {
                         try {
                             await client.query('BEGIN');
 
-                            const planId = pending.plan_id || data.metadata?.plan_id || null;
+                            let planId = pending.plan_id || data.metadata?.plan_id || null;
                             let durationDays = 30;
+
+                            // Safeguard: Ensure planId is a valid UUID before querying
+                            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                            if (planId && !uuidRegex.test(planId)) {
+                                console.warn(`[PaymentService.verifyPayment] Warning: Invalid plan ID format "${planId}". Ignoring plan lookup.`);
+                                planId = null;
+                            }
+
                             if (planId) {
-                                const dRes = await client.query('SELECT duration_days FROM plans WHERE id = $1', [planId]);
-                                if (dRes.rows.length > 0 && dRes.rows[0].duration_days) {
-                                    durationDays = Number(dRes.rows[0].duration_days);
+                                try {
+                                    const dRes = await client.query('SELECT duration_days FROM plans WHERE id = $1', [planId]);
+                                    if (dRes.rows.length > 0 && dRes.rows[0].duration_days) {
+                                        durationDays = Number(dRes.rows[0].duration_days);
+                                    }
+                                } catch (dbErr) {
+                                    console.error(`[PaymentService.verifyPayment] Plan lookup failed for id ${planId}:`, dbErr.message);
+                                    // Fallback to default duration
                                 }
                             }
 
@@ -333,10 +346,14 @@ class PaymentService {
 
                             // Fetch the plan name/type to use for the subscription plan column
                             let planType = 'family'; // default to family
-                            if (planId) {
-                                const planTypeRes = await client.query('SELECT plan_name FROM plans WHERE id = $1', [planId]);
-                                if (planTypeRes.rows.length > 0 && planTypeRes.rows[0].plan_name) {
-                                    planType = planTypeRes.rows[0].plan_name.toLowerCase();
+                            if (planId && uuidRegex.test(planId)) {
+                                try {
+                                    const planTypeRes = await client.query('SELECT plan_name FROM plans WHERE id = $1', [planId]);
+                                    if (planTypeRes.rows.length > 0 && planTypeRes.rows[0].plan_name) {
+                                        planType = planTypeRes.rows[0].plan_name.toLowerCase();
+                                    }
+                                } catch (err) {
+                                    console.warn(`[PaymentService.verifyPayment] Plan name lookup failed: ${err.message}`);
                                 }
                             }
 

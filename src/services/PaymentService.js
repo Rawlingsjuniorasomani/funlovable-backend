@@ -241,7 +241,7 @@ class PaymentService {
                                 password: !!registrationPayload.password
                             });
 
-                            const role = lockedPending.role;
+                            const role = lockedPending.role || 'parent'; // Fix 4: Never default to admin, safe fallback
                             const password = registrationPayload.password;
                             if (!password) {
                                 throw new Error('Missing registration password');

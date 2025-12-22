@@ -10,9 +10,9 @@ async function getStudentCreds() {
         const userRes = await client.query('SELECT role, email FROM users WHERE id = $1', [childId]);
         console.log('Child User:', userRes.rows[0]);
 
-        // We can't see the password since it's hashed.
-        // We might need to reset it or just output the email so they can try default password.
-        // ParentService.js sets default password to 'password123' or similar during creation.
+        
+        
+        
 
     } catch (err) {
         console.error(err);

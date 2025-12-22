@@ -17,7 +17,7 @@ async function testTeacherApproval() {
             school: 'Test School',
             yearsOfExperience: 5,
             address: '123 Main St',
-            subjectId: null // Optional
+            subjectId: null 
         });
 
         console.log('Registration result:', regResult.requiresApproval ? 'Pending Approval (Correct)' : 'Auto-Approved (Incorrect)');
@@ -37,7 +37,7 @@ async function testTeacherApproval() {
         const loginResult = await AuthService.login(email, password);
         console.log('✅ Login successful:', loginResult.token ? 'Token generated' : 'No token');
 
-        // Cleanup
+        
         await pool.query("DELETE FROM users WHERE email = $1", [email]);
 
         process.exit(0);

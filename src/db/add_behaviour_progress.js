@@ -9,7 +9,7 @@ async function addBehaviourAndProgressTables() {
 
         await client.query('BEGIN');
 
-        // Create behaviour_records table
+        
         await client.query(`
             CREATE TABLE IF NOT EXISTS behaviour_records (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -25,7 +25,7 @@ async function addBehaviourAndProgressTables() {
             );
         `);
 
-        // Create lesson_views table
+        
         await client.query(`
             CREATE TABLE IF NOT EXISTS lesson_views (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -37,7 +37,7 @@ async function addBehaviourAndProgressTables() {
             );
         `);
 
-        // Create learning_analytics table
+        
         await client.query(`
             CREATE TABLE IF NOT EXISTS learning_analytics (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -54,7 +54,7 @@ async function addBehaviourAndProgressTables() {
             );
         `);
 
-        // Create indexes
+        
         await client.query(`
             CREATE INDEX IF NOT EXISTS idx_behaviour_student ON behaviour_records(student_id);
             CREATE INDEX IF NOT EXISTS idx_behaviour_date ON behaviour_records(date);

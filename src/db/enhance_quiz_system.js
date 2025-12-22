@@ -9,7 +9,7 @@ async function enhanceQuizTables() {
 
         await client.query('BEGIN');
 
-        // Enhance quizzes table
+        
         await client.query(`
             ALTER TABLE quizzes
             ADD COLUMN IF NOT EXISTS quiz_type VARCHAR(20) DEFAULT 'practice',
@@ -25,7 +25,7 @@ async function enhanceQuizTables() {
             ADD COLUMN IF NOT EXISTS class_name VARCHAR(100);
         `);
 
-        // Enhance quiz_questions table
+        
         await client.query(`
             ALTER TABLE quiz_questions
             ADD COLUMN IF NOT EXISTS question_type VARCHAR(20) DEFAULT 'mcq',
@@ -33,7 +33,7 @@ async function enhanceQuizTables() {
             ADD COLUMN IF NOT EXISTS order_index INT DEFAULT 0;
         `);
 
-        // Enhance quiz_attempts table
+        
         await client.query(`
             ALTER TABLE quiz_attempts
             ADD COLUMN IF NOT EXISTS start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -46,7 +46,7 @@ async function enhanceQuizTables() {
             ADD COLUMN IF NOT EXISTS is_released BOOLEAN DEFAULT false;
         `);
 
-        // Create quiz_answers table
+        
         await client.query(`
             CREATE TABLE IF NOT EXISTS quiz_answers (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -61,7 +61,7 @@ async function enhanceQuizTables() {
             );
         `);
 
-        // Create indexes
+        
         await client.query(`
             CREATE INDEX IF NOT EXISTS idx_quiz_answers_attempt ON quiz_answers(attempt_id);
             CREATE INDEX IF NOT EXISTS idx_quiz_answers_question ON quiz_answers(question_id);

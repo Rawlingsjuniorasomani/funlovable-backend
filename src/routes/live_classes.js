@@ -3,7 +3,7 @@ const router = express.Router();
 const pool = require('../db/pool');
 const { authMiddleware, requireRole } = require('../middleware/auth');
 
-// Get all live classes (with filters)
+
 router.get('/', authMiddleware, async (req, res) => {
     try {
         const { subject_id, teacher_id, status } = req.query;
@@ -29,7 +29,7 @@ router.get('/', authMiddleware, async (req, res) => {
             query += ` AND lc.status = $${params.length}`;
         }
 
-        // Student Content Filtering: Only show classes for subjects the student is enrolled in
+        
         if (req.user.role === 'student') {
             params.push(req.user.id);
             query += ` AND lc.subject_id IN (
@@ -47,16 +47,16 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 });
 
-// Create a live class (Teacher/Admin)
+
 router.post('/', authMiddleware, requireRole(['teacher', 'admin']), async (req, res) => {
     try {
         const { title, description, subject_id, scheduled_at, duration_minutes, meeting_url } = req.body;
 
-        // If teacher, force teacher_id to be themselves. If admin, they can specify (or default to null/current user?)
-        // For now, if admin creates, they handle teacher_id in body? Or assume current user if role is teacher
+        
+        
         let teacher_id = req.user.id;
 
-        // Optional: allow admin to assign teacher
+        
         if (req.user.role === 'admin' && req.body.teacher_id) {
             teacher_id = req.body.teacher_id;
         }
@@ -74,10 +74,10 @@ router.post('/', authMiddleware, requireRole(['teacher', 'admin']), async (req, 
     }
 });
 
-// Update status (e.g., start/end)
+
 router.put('/:id/status', authMiddleware, requireRole(['teacher', 'admin']), async (req, res) => {
     try {
-        // Check ownership: teachers can only update their own classes
+        
         if (req.user.role === 'teacher') {
             const ownerCheck = await pool.query(
                 'SELECT teacher_id FROM live_classes WHERE id = $1',
@@ -88,7 +88,7 @@ router.put('/:id/status', authMiddleware, requireRole(['teacher', 'admin']), asy
             }
         }
 
-        const { status } = req.body; // 'live', 'completed', 'scheduled'
+        const { status } = req.body; 
         const result = await pool.query(`
       UPDATE live_classes
       SET status = $1
@@ -106,10 +106,10 @@ router.put('/:id/status', authMiddleware, requireRole(['teacher', 'admin']), asy
     }
 });
 
-// Delete class
+
 router.delete('/:id', authMiddleware, requireRole(['teacher', 'admin']), async (req, res) => {
     try {
-        // Check ownership: teachers can only delete their own classes
+        
         if (req.user.role === 'teacher') {
             const ownerCheck = await pool.query(
                 'SELECT teacher_id FROM live_classes WHERE id = $1',

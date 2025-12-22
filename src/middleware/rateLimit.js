@@ -1,10 +1,10 @@
-// Simple in-memory rate limiter for sensitive endpoints.
-// Not distributed — suitable as a quick mitigation for brute-force.
+
+
 const attempts = new Map();
 
-// options: { windowMs, max }
+
 const rateLimit = (options = {}) => {
-  const windowMs = options.windowMs || 15 * 60 * 1000; // 15 minutes
+  const windowMs = options.windowMs || 15 * 60 * 1000; 
   const max = options.max || 10;
 
   return (req, res, next) => {

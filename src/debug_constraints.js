@@ -5,7 +5,7 @@ async function debugDelete() {
     try {
         console.log('🔍 Debugging DELETE constraints...');
 
-        // Find the teacher again
+        
         const res = await pool.query("SELECT id FROM users WHERE email = 'teacher@edulearn.com'");
         if (res.rows.length === 0) {
             console.log('Teacher not found. Create it first or use another.');
@@ -14,7 +14,7 @@ async function debugDelete() {
         const userId = res.rows[0].id;
         console.log(`Target User ID: ${userId}`);
 
-        // Attempt direct DB delete to see low-level error
+        
         await pool.query('DELETE FROM users WHERE id = $1', [userId]);
 
         console.log('✅ Unexpected: User deleted successfully (No constraints hit?)');

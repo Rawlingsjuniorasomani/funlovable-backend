@@ -23,7 +23,7 @@ async function testLogin() {
             console.log('✅ Password matches!');
         } else {
             console.log('❌ Password DOES NOT match.');
-            // Test hashing 'admin' again to see what it looks like
+            
             const newHash = await bcrypt.hash(password, 10);
             console.log('   New hash for comparison:', newHash);
         }

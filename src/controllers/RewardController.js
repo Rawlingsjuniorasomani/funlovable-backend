@@ -18,16 +18,16 @@ class RewardController {
                 reason
             });
 
-            // Notify student
+            
             await NotificationModel.create({
                 type: 'success',
                 title: 'You received a reward!',
                 description: `You were awarded "${name}" by your teacher.`,
                 related_id: reward.id,
-                user_id: student_id // Assuming NotificationModel needs user_id (checking model signature next)
+                user_id: student_id 
             });
 
-            // Add XP if type is points? (Optional logic later)
+            
 
             res.status(201).json(reward);
         } catch (error) {
@@ -38,7 +38,7 @@ class RewardController {
 
     static async getMyRewards(req, res) {
         try {
-            // If teacher, get rewards given. If student, get rewards received.
+            
             if (req.user.role === 'teacher') {
                 const rewards = await RewardModel.getByTeacher(req.user.id);
                 res.json(rewards);
@@ -56,8 +56,8 @@ class RewardController {
 
     static async delete(req, res) {
         try {
-            // Verify ownership (only the teacher who gave it can delete)
-            // For now simple delete, can add check later
+            
+            
             await RewardModel.delete(req.params.id);
             res.json({ message: 'Reward deleted' });
         } catch (error) {

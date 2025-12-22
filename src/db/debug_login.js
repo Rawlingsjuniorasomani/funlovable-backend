@@ -10,11 +10,11 @@ async function debug() {
         for (const p of parents.rows) {
             console.log(`\nParent: ${p.email} (${p.id})`);
 
-            // Check Children
+            
             const children = await client.query('SELECT count(*) FROM parent_children WHERE parent_id = $1', [p.id]);
             console.log(`  - Children Count: ${children.rows[0].count}`);
 
-            // Check Subscription
+            
             const sub = await client.query("SELECT * FROM subscriptions WHERE user_id = $1", [p.id]);
             if (sub.rows.length === 0) {
                 console.log(`  - Subscription: NONE`);

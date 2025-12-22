@@ -31,7 +31,7 @@ class QuizService {
         return await QuizModel.getAvailable(studentId);
     }
 
-    // Question management
+    
     static async addQuestion(data) {
         return await QuizModel.addQuestion(data);
     }
@@ -48,7 +48,7 @@ class QuizService {
         return await QuizModel.deleteQuestion(id);
     }
 
-    // Attempt management
+    
     static async startAttempt(quizId, studentId) {
         return await QuizModel.startAttempt(quizId, studentId);
     }
@@ -61,7 +61,7 @@ class QuizService {
         return await QuizModel.getAttemptsByQuiz(quizId);
     }
 
-    // Answer management
+    
     static async saveAnswer(data) {
         return await QuizModel.saveAnswer(data);
     }
@@ -74,7 +74,7 @@ class QuizService {
         return await QuizModel.gradeAnswer(answerId, marksAwarded, feedback);
     }
 
-    // Submit and grading
+    
     static async submitQuiz(attemptId, timeTaken) {
         return await QuizModel.submitAttempt(attemptId, timeTaken);
     }

@@ -4,9 +4,9 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Get modules by subject (assuming Query param or just handling in controller via different route structure)
-// Current logic in frontend often expects /modules?subjectId=... or /subjects/:id/modules
-// Let's stick to simple CRUD.
+
+
+
 
 router.get('/', authMiddleware, ModuleController.getAll);
 router.get('/subject/:subjectId', authMiddleware, ModuleController.getBySubject);

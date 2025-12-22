@@ -17,11 +17,11 @@ class AuthController {
                     code: 'PAYMENT_REQUIRED'
                 });
             }
-            // Map 'class' from frontend to 'studentClass' for backend consistency, or just pass 'class' if service handles it. 
-            // Better to pass explicit fields.
+            
+            
             const result = await AuthService.register({ name, email, password, role, phone, school, age, studentClass, ...rest });
 
-            // Notify Admins
+            
             try {
                 const pool = require('../db/pool');
                 const NotificationModel = require('../models/NotificationModel');
@@ -42,22 +42,15 @@ class AuthController {
                 await Promise.all(notificationPromises);
             } catch (notifError) {
                 console.error('Failed to notify admins:', notifError);
-                // Don't fail the registration if notification fails
+                
             }
-
-            // Notify Admins (existing code...)
-            try {
-                // ... (omitted for brevity in replacement, but I must be careful not to delete logic I can't see fully if I replace too much)
-                // Wait, I should not replace the notification block. I'll target the lines AFTER notification block.
-                // The view_file showed notification block ends at line 39. Line 41 is res.status(201).json(result);
-            } catch (ignore) { }
 
             if (result.token) {
                 res.cookie('token', result.token, {
                     httpOnly: true,
                     secure: process.env.NODE_ENV === 'production',
                     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                    maxAge: 24 * 60 * 60 * 1000 // 1 day
+                    maxAge: 24 * 60 * 60 * 1000 
                 });
             }
 
@@ -78,15 +71,20 @@ class AuthController {
                 return res.status(400).json({ errors: errors.array() });
             }
 
-            const { email, password } = req.body;
-            const result = await AuthService.login(email, password);
+            const { email, phone, password } = req.body;
+            
+            const identifier = email || phone;
+            if (!identifier) {
+                return res.status(400).json({ error: 'Email or Phone is required' });
+            }
+            const result = await AuthService.login(identifier, password);
 
-            // Set HTTP-only cookie
+            
             res.cookie('token', result.token, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                maxAge: 24 * 60 * 60 * 1000 // 1 day
+                maxAge: 24 * 60 * 60 * 1000 
             });
 
             res.json(result);
@@ -99,17 +97,31 @@ class AuthController {
         }
     }
 
+    static async logout(req, res) {
+        try {
+            res.clearCookie('token', {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+            });
+            res.json({ message: 'Logged out successfully' });
+        } catch (error) {
+            console.error('Logout error:', error);
+            res.status(500).json({ error: 'Logout failed' });
+        }
+    }
+
     static async adminLogin(req, res) {
         try {
             const { email, password } = req.body;
             const result = await AuthService.adminLogin(email, password);
 
-            // Set HTTP-only cookie
+            
             res.cookie('token', result.token, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-                maxAge: 24 * 60 * 60 * 1000 // 1 day
+                maxAge: 24 * 60 * 60 * 1000 
             });
 
             res.json(result);
@@ -124,10 +136,10 @@ class AuthController {
 
     static async getMe(req, res) {
         try {
-            // Return user in the same format as login
+            
             let user = req.user;
 
-            // If the user is a parent, fetch their children to include in the response
+            
             if (user && user.role === 'parent') {
                 try {
                     const pool = require('../db/pool');
@@ -141,7 +153,7 @@ class AuthController {
                     user = { ...user, children: childrenResult.rows };
                 } catch (childErr) {
                     console.error('Failed to fetch parent children for getMe:', childErr);
-                    // proceed without children
+                    
                 }
             }
 
@@ -165,12 +177,12 @@ class AuthController {
     static async generateOTP(req, res) {
         try {
             const OtpService = require('../services/OtpService');
-            // User must be authenticated
+            
             if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
 
             const code = await OtpService.generateOTP(req.user.id, req.body.type || 'general');
 
-            // In production we should never return the code. Expose it only in development.
+            
             if (process.env.NODE_ENV === 'development') {
                 return res.json({ message: 'OTP generated', code });
             }

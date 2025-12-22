@@ -39,7 +39,7 @@ class AssignmentService {
         return await AssignmentModel.gradeSubmission(id, data);
     }
 
-    // Question Management
+    
     static async addQuestion(data) {
         return await AssignmentModel.addQuestion(data);
     }
@@ -56,7 +56,7 @@ class AssignmentService {
         return await AssignmentModel.deleteQuestion(id);
     }
 
-    // Answer Management
+    
     static async saveAnswer(data) {
         return await AssignmentModel.saveAnswer(data);
     }

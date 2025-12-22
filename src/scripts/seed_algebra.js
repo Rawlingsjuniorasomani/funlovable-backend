@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-require('dotenv').config({ path: '../../.env' }); // Adjust path as needed
+require('dotenv').config({ path: '../../.env' }); 
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -11,7 +11,7 @@ async function seedAlgebra() {
         await client.query('BEGIN');
         console.log('Starting Algebra Seeding...');
 
-        // 1. Find or Create Subject
+        
         let subjectId;
         const subjectRes = await client.query("SELECT id FROM subjects WHERE name = $1", ['Mathematics (JHS / SHS)']);
 
@@ -28,7 +28,7 @@ async function seedAlgebra() {
             console.log(`Created new subject: ${subjectId}`);
         }
 
-        // 2. Create Module
+        
         const moduleRes = await client.query(`
       INSERT INTO modules (subject_id, title, description, status, order_index)
       VALUES ($1, $2, $3, $4, $5)
@@ -43,7 +43,7 @@ async function seedAlgebra() {
         const moduleId = moduleRes.rows[0].id;
         console.log(`Created Module: ${moduleId}`);
 
-        // 3. Create Lessons
+        
         const lessons = [
             {
                 title: 'What Is Algebra?',
@@ -57,7 +57,7 @@ async function seedAlgebra() {
                 type: 'video',
                 duration: 15,
                 content: 'Meaning of variables. Common symbols used (x, y, z). Examples of variables in expressions.',
-                video_url: 'https://www.youtube.com/watch?v=NybHckSEQBI', // Placeholder
+                video_url: 'https://www.youtube.com/watch?v=NybHckSEQBI', 
                 order: 2
             },
             {
@@ -72,7 +72,7 @@ async function seedAlgebra() {
                 type: 'video',
                 duration: 18,
                 content: 'Difference between expressions and equations. Solving simple equations. Step-by-step examples.',
-                video_url: 'https://www.youtube.com/watch?v=L2jq836zAMg', // Placeholder
+                video_url: 'https://www.youtube.com/watch?v=L2jq836zAMg', 
                 order: 4
             },
             {
@@ -80,7 +80,7 @@ async function seedAlgebra() {
                 type: 'pdf',
                 duration: 15,
                 content: 'Practice questions. Worked solutions.',
-                file_url: 'https://example.com/algebra-practice.pdf', // Placeholder
+                file_url: 'https://example.com/algebra-practice.pdf', 
                 order: 5
             }
         ];
@@ -93,8 +93,8 @@ async function seedAlgebra() {
         }
         console.log(`Created ${lessons.length} lessons`);
 
-        // 4. Create Quiz
-        // Find a teacher to assign ownership to (optional, or nullable)
+        
+        
         const teacherRes = await client.query("SELECT id FROM users WHERE role = 'teacher' LIMIT 1");
         const teacherId = teacherRes.rows.length > 0 ? teacherRes.rows[0].id : null;
 
@@ -113,7 +113,7 @@ async function seedAlgebra() {
         const quizId = quizRes.rows[0].id;
         console.log(`Created Quiz: ${quizId}`);
 
-        // Add 5 Mock Questions
+        
         const questions = [
             { text: 'What is a variable?', type: 'multiple_choice', opts: ['A number', 'A symbol representing a number', 'An operator', 'None of above'], ans: 'A symbol representing a number' },
             { text: 'Solve for x: x + 5 = 10', type: 'short_answer', ans: '5' },
@@ -130,7 +130,7 @@ async function seedAlgebra() {
         }
         console.log('Added Questions to Quiz');
 
-        // 5. Create Assignment
+        
         await client.query(`
       INSERT INTO assignments (
         module_id, subject_id, teacher_id, title, description,

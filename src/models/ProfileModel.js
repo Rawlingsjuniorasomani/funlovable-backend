@@ -11,6 +11,7 @@ class ProfileModel {
 
     static async createTeacher(userId, bio, qualifications, school, yearsOfExperience, address, subjectId) {
         const client = await pool.connect();
+        console.log('ProfileModel.createTeacher called with:', { userId, subjectId, school }); // Debug log
         try {
             await client.query('BEGIN');
 
@@ -31,6 +32,7 @@ class ProfileModel {
             await client.query('COMMIT');
             return result.rows[0];
         } catch (error) {
+            console.error('Error in createTeacher:', error); // Added logging
             await client.query('ROLLBACK');
             throw error;
         } finally {
@@ -39,7 +41,7 @@ class ProfileModel {
     }
 
     static async createStudent(userId, childId) {
-        // Note: Student creation logic might need to link to child
+
         const result = await pool.query(
             `INSERT INTO students (user_id, child_id) VALUES ($1, $2) RETURNING *`,
             [userId, childId]

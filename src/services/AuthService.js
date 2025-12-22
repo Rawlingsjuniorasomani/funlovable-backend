@@ -10,40 +10,39 @@ const SmsService = require('./SmsService');
 
 class AuthService {
     static async register({ name, email, password, role, phone, school, age, studentClass, ...rest }) {
-        const existingUser = await UserModel.findByEmail(email);
-        if (existingUser) {
-            throw new Error('Email already registered');
+        if (email) {
+            const existingUserEmail = await UserModel.findByEmail(email);
+            if (existingUserEmail) {
+                throw new Error('Email already registered');
+            }
+        }
+
+        if (phone) {
+            const existingUserPhone = await UserModel.findByPhone(phone);
+            if (existingUserPhone) {
+                throw new Error('Phone number already registered');
+            }
         }
 
         const passwordHash = await bcrypt.hash(password, 10);
-        // Teachers need approval, others approved by default
+        
         const isApproved = role !== 'teacher';
 
-        // Pass new fields to UserModel.create
+        
         const user = await UserModel.create({ name, email, passwordHash, role, phone, isApproved, school, age, studentClass });
 
-        // Create Role-Specific Profile
+        
         if (role === 'parent') {
             await ProfileModel.createParent(user.id);
         } else if (role === 'teacher') {
             const { bio, qualifications, address, subjectId } = rest;
-            // Teacher specific fields are now partly on user table (school) and partly on profile/subjects
-            // We still pass school/address/etc to createTeacher if it uses them, or update logic there.
-            // But wait, my migration added 'school' to users table. 
-            // ProfileModel.createTeacher might still be expecting school arg?
-            // Let's check ProfileModel.createTeacher signature again.
-            // It was: createTeacher(userId, bio, qualifications, school, yearsOfExperience, address, subjectId)
-            // If I want to support school in users table, I should probably still pass it here if the profile model puts it in teachers table?
-            // Or did I migrate teachers table too? The task.md said "Add columns to teachers table".
-            // But this new request 1,2,3 was about STUDENT fields on USERS table.
-
-            // For now, let's keep the ProfileModel.createTeacher call compatible with whatever it expects.
-            // Explicitly extract teacher specific fields from 'rest' again just to be safe if they come in top level
+          
+            
             const { yearsOfExperience } = rest;
             await ProfileModel.createTeacher(user.id, bio || '', qualifications || '', school, yearsOfExperience, address, subjectId);
         }
 
-        // For teachers, don't generate token yet - they need admin approval
+        
         if (role === 'teacher') {
             delete user.password_hash;
             return {
@@ -57,8 +56,8 @@ class AuthService {
         return { user, token };
     }
 
-    static async login(email, password) {
-        const user = await UserModel.findByEmail(email);
+    static async login(identifier, password) {
+        const user = await UserModel.findByIdentifier(identifier);
         if (!user) {
             throw new Error('Invalid credentials');
         }
@@ -68,13 +67,13 @@ class AuthService {
             throw new Error('Invalid credentials');
         }
 
-        // Check teacher approval status
+        
         if (user.role === 'teacher' && !user.is_approved) {
             throw new Error('Your account is pending admin approval. Please wait for an administrator to review your application.');
         }
 
         if (user.role === 'parent') {
-            // 1. Check for at least one child
+            
             const childCheck = await pool.query(
                 'SELECT 1 FROM parent_children WHERE parent_id = $1 LIMIT 1',
                 [user.id]
@@ -84,22 +83,22 @@ class AuthService {
                 throw new Error('Registration incomplete: No children added.');
             }
 
-            // 2. Check for active subscription
-            // const subCheck = await pool.query(
-            //     "SELECT 1 FROM subscriptions WHERE user_id = $1 AND status = 'active' AND expires_at > NOW() LIMIT 1",
-            //     [user.id]
-            // );
+            
+            
+            
+            
+            
 
-            // if (subCheck.rows.length === 0) {
-            //     // Allow login even without active subscription, so they can renew/pay
-            //     // throw new Error('Registration incomplete: No active subscription.');
-            // }
+            
+            
+            
+            
         }
 
         const token = this.generateToken(user);
-        delete user.password_hash; // Don't return hash
+        delete user.password_hash; 
 
-        // Attach subscription and children info
+        
         if (user.role === 'parent') {
             const subscription = await SubscriptionModel.findByParent(user.id);
             if (subscription) {
@@ -125,7 +124,7 @@ class AuthService {
     static async adminLogin(email, password) {
         console.log('Admin login attempt for:', email);
 
-        // Simple direct query - just check users table
+        
         const result = await pool.query(
             'SELECT * FROM users WHERE email = $1 AND role = $2',
             [email, 'admin']
@@ -173,7 +172,7 @@ class AuthService {
     static async requestPasswordReset(email) {
         const user = await UserModel.findByEmail(email);
         if (!user) {
-            // Security: Don't reveal if user exists
+            
             return { message: 'If an account exists, an OTP has been sent.' };
         }
 
@@ -181,7 +180,7 @@ class AuthService {
         const code = await OtpService.generateOTP(user.id, 'password_reset');
 
         if (!user.phone) {
-            // Don't reveal too much detail; but frontend should show a clear message.
+            
             throw new Error('No phone number found on this account');
         }
 

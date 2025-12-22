@@ -6,7 +6,7 @@ async function verifyAdmin() {
     try {
         console.log('🔍 Verifying Admin Dashboard Connection...');
 
-        // 1. Login Admin
+        
         const loginRes = await axios.post('http://localhost:5000/api/auth/admin/login', {
             email: 'admin@edulearn.com',
             password: 'admin123'
@@ -14,7 +14,7 @@ async function verifyAdmin() {
         const token = loginRes.data.token;
         console.log('✅ Admin Login Successful');
 
-        // 2. Fetch Users (Typical Admin Dashboard Call)
+        
         const usersRes = await axios.get('http://localhost:5000/api/users', {
             headers: { Authorization: `Bearer ${token}` }
         });

@@ -17,7 +17,7 @@ const runMigration = async () => {
             );
         `);
 
-        // Seed initial data if empty
+        
         const count = await pool.query('SELECT COUNT(*) FROM plans');
         if (parseInt(count.rows[0].count) === 0) {
             console.log('Seeding initial plans...');

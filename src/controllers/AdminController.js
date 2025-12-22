@@ -3,7 +3,7 @@ const pool = require('../db/pool');
 class AdminController {
     static async getStats(req, res) {
         try {
-            // Parallel queries for performance
+            
             const [
                 usersCount,
                 teachersCount,
@@ -17,7 +17,7 @@ class AdminController {
                 pool.query("SELECT COUNT(*) FROM users WHERE role = 'parent'"),
                 pool.query("SELECT COUNT(*) FROM users WHERE role = 'student'"),
                 pool.query('SELECT COUNT(*) FROM subjects'),
-                pool.query("SELECT SUM(amount) FROM payments WHERE status = 'success'") // Assuming 'success' status
+                pool.query("SELECT SUM(amount) FROM payments WHERE status = 'success'") 
             ]);
 
             const stats = {

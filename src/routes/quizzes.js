@@ -4,7 +4,7 @@ const { authMiddleware, requireRole, requireSubscription } = require('../middlew
 
 const router = express.Router();
 
-// Teacher routes
+
 router.get('/', authMiddleware, requireRole(['teacher', 'admin']), QuizController.getAll);
 router.post('/', authMiddleware, requireRole(['teacher', 'admin']), QuizController.create);
 router.put('/:id', authMiddleware, requireRole(['teacher', 'admin']), QuizController.update);
@@ -18,14 +18,14 @@ router.put('/answers/:answerId/grade', authMiddleware, requireRole(['teacher', '
 router.post('/attempts/:attemptId/release', authMiddleware, requireRole(['teacher', 'admin']), QuizController.releaseResults);
 router.put('/attempts/:attemptId/feedback', authMiddleware, requireRole(['teacher', 'admin']), QuizController.updateFeedback);
 
-// Student routes
+
 router.get('/available', authMiddleware, requireRole(['student']), requireSubscription, QuizController.getAvailable);
 router.post('/:id/start', authMiddleware, requireRole(['student']), requireSubscription, QuizController.startAttempt);
 router.post('/attempts/:attemptId/answers', authMiddleware, requireRole(['student']), requireSubscription, QuizController.saveAnswer);
 router.post('/attempts/:attemptId/submit', authMiddleware, requireRole(['student']), requireSubscription, QuizController.submit);
 router.get('/attempts/:attemptId/results', authMiddleware, requireSubscription, QuizController.getAttemptResults);
 
-// Common routes
+
 router.get('/subject/:subjectId', authMiddleware, QuizController.getBySubject);
 router.get('/:id', authMiddleware, QuizController.getOne);
 

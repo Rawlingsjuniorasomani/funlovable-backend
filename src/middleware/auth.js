@@ -18,7 +18,7 @@ const authMiddleware = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Get user from database with super_admin status
+    
     const result = await pool.query(`
       SELECT u.id, u.name, u.email, u.role, u.is_approved, u.is_onboarded,
              u.subscription_status, u.subscription_end_date,
@@ -35,7 +35,7 @@ const authMiddleware = async (req, res, next) => {
 
     const user = result.rows[0];
 
-    // Block unapproved teachers
+    
     if (user.role === 'teacher' && !user.is_approved) {
       return res.status(403).json({
         error: 'Account pending approval',
@@ -43,17 +43,17 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // Handle "View As Student" for Parents
+    
     const viewAsId = req.headers['x-view-as-student'];
     if (viewAsId && user.role === 'parent') {
-      // Verify parent-child relationship
+      
       const childLink = await pool.query(
         'SELECT * FROM parent_children WHERE parent_id = $1 AND child_id = $2',
         [user.id, viewAsId]
       );
 
       if (childLink.rows.length > 0) {
-        // Fetch child user details
+        
         const childUserResult = await pool.query(`
           SELECT u.id, u.name, u.email, u.role, u.is_approved, u.subscription_status, u.subscription_end_date
           FROM users u
@@ -61,9 +61,9 @@ const authMiddleware = async (req, res, next) => {
         `, [viewAsId]);
 
         if (childUserResult.rows.length > 0) {
-          req.user = childUserResult.rows[0]; // Swap context to student
-          req.user.parent_id = user.id; // Optional: keep track of real user
-          req.parentUser = user; // Preserve parent info
+          req.user = childUserResult.rows[0]; 
+          req.user.parent_id = user.id; 
+          req.parentUser = user; 
         }
       }
     } else {
@@ -89,19 +89,19 @@ const requireRole = (...roles) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Check user_roles table for proper RBAC
+    
     const result = await pool.query(
       'SELECT role FROM user_roles WHERE user_id = $1',
       [req.user.id]
     );
 
     const userRoles = result.rows.map(r => r.role.toLowerCase());
-    userRoles.push(req.user.role.toLowerCase()); // Include the main role from users table
+    userRoles.push(req.user.role.toLowerCase()); 
 
     const requiredRoles = roles.flat().map(r => r.toLowerCase());
     const hasRole = userRoles.includes('super_admin') || requiredRoles.some(role => userRoles.includes(role));
 
-    // Debug logging
+    
     console.log(`[requireRole] User: ${req.user.email}, User Roles: [${userRoles.join(', ')}], Required: [${requiredRoles.join(', ')}], Has Access: ${hasRole}`);
 
     if (!hasRole) {
@@ -120,12 +120,12 @@ const requireApproval = (req, res, next) => {
 };
 
 const requireSubscription = (req, res, next) => {
-  // Only check for students
+  
   if (req.user.role !== 'student') {
     return next();
   }
 
-  // Check if subscription is active and not expired
+  
   const isActive = req.user.subscription_status === 'active';
   const isExpired = req.user.subscription_end_date && new Date(req.user.subscription_end_date) < new Date();
 
@@ -145,12 +145,12 @@ const requireSuperAdmin = async (req, res, next) => {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  // Use the pre-fetched flag if available, otherwise fallback to DB (redundancy)
+  
   if (req.user.is_super_admin) {
     return next();
   }
 
-  // Fallback check (mostly for safety if authMiddleware used differently)
+  
   try {
     const result = await pool.query(
       "SELECT 1 FROM user_roles WHERE user_id = $1 AND role = 'super_admin'",

@@ -6,14 +6,14 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 const router = express.Router();
 const settingsPath = path.resolve(__dirname, '../../settings.json');
 
-// Get settings
+
 router.get('/', authMiddleware, requireRole('admin'), (req, res) => {
     try {
         if (fs.existsSync(settingsPath)) {
             const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
             res.json(settings);
         } else {
-            res.json({}); // Return empty object if no settings yet
+            res.json({}); 
         }
     } catch (error) {
         console.error('Get settings error:', error);
@@ -21,7 +21,7 @@ router.get('/', authMiddleware, requireRole('admin'), (req, res) => {
     }
 });
 
-// Save settings
+
 router.post('/', authMiddleware, requireRole('admin'), (req, res) => {
     try {
         const settings = req.body;

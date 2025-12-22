@@ -29,7 +29,7 @@ async function checkTables() {
         if (ts.rows.length === 0) {
             console.log('❌ teacher_subjects table MISSING');
 
-            // Create it if missing
+            
             await pool.query(`
                 CREATE TABLE IF NOT EXISTS teacher_subjects (
                     teacher_id UUID REFERENCES users(id) ON DELETE CASCADE,

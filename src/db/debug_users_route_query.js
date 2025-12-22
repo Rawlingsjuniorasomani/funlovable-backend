@@ -6,7 +6,7 @@ async function debugQuery() {
     try {
         console.log("--- Executing Users Route Query ---");
 
-        // Exact copy of query from users.js
+        
         const query = `
       SELECT u.id, u.name, u.email, u.role, u.phone, u.avatar, u.is_approved, u.is_onboarded, u.created_at,
              u.student_class, u.school,

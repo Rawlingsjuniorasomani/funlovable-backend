@@ -3,11 +3,11 @@ const crypto = require('crypto');
 
 class OtpService {
     static async generateOTP(userId, type = 'general') {
-        // Generate 6-digit code
+        
         const code = crypto.randomInt(100000, 999999).toString();
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); 
 
-        // Store in DB, invalidate previous codes of same type for this user
+        
         await pool.query('DELETE FROM otps WHERE user_id = $1 AND type = $2', [userId, type]);
 
         await pool.query(
@@ -15,7 +15,7 @@ class OtpService {
             [userId, code, type, expiresAt]
         );
 
-        // MOCK: In production, send via Email/SMS
+        
         console.log(`🔐 [MOCK OTP] Generated for user ${userId} (${type}): ${code}`);
 
         return code;
@@ -34,10 +34,10 @@ class OtpService {
         const otp = result.rows[0];
         if (new Date() > new Date(otp.expires_at)) {
             await pool.query('DELETE FROM otps WHERE id = $1', [otp.id]);
-            return false; // Expired
+            return false; 
         }
 
-        // consume OTP
+        
         await pool.query('DELETE FROM otps WHERE id = $1', [otp.id]);
         return true;
     }

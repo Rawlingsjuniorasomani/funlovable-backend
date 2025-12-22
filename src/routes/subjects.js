@@ -4,27 +4,27 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Public get all subjects
+
 router.get('/', SubjectController.getAll);
 
-// Get teacher's subjects
+
 router.get('/my-subjects', authMiddleware, requireRole(['teacher']), SubjectController.getTeacherSubjects);
 
-// Get single subject
+
 router.get('/:id', SubjectController.getOne);
 
-// Admin/Teacher only routes
+
 router.post('/', authMiddleware, requireRole(['admin', 'teacher']), SubjectController.create);
 router.put('/:id', authMiddleware, requireRole(['admin', 'teacher']), SubjectController.update);
 router.delete('/:id', authMiddleware, requireRole(['admin']), SubjectController.delete);
 
-// Student Enrollment
+
 router.post('/:id/enroll', authMiddleware, requireRole(['student']), async (req, res) => {
     try {
         const studentId = req.user.id;
         const subjectId = req.params.id;
 
-        // Check if already enrolled
+        
         const check = await require('../db/pool').query(
             'SELECT * FROM student_subjects WHERE student_id = $1 AND subject_id = $2',
             [studentId, subjectId]
@@ -39,12 +39,12 @@ router.post('/:id/enroll', authMiddleware, requireRole(['student']), async (req,
             [studentId, subjectId]
         );
 
-        // Notify Teachers
+        
         try {
             const pool = require('../db/pool');
             const NotificationModel = require('../models/NotificationModel');
 
-            // Find teachers for this subject
+            
             const teachersResult = await pool.query(
                 'SELECT teacher_id FROM teacher_subjects WHERE subject_id = $1',
                 [subjectId]

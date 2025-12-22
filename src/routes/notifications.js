@@ -4,7 +4,7 @@ const pool = require('../db/pool');
 const NotificationModel = require('../models/NotificationModel');
 const { authMiddleware, requireRole } = require('../middleware/auth');
 
-// Get my notifications
+
 router.get('/my', authMiddleware, async (req, res) => {
   try {
     const notifications = await NotificationModel.getByUser(req.user.id);
@@ -15,7 +15,7 @@ router.get('/my', authMiddleware, async (req, res) => {
   }
 });
 
-// Get all notifications (Admin only)
+
 router.get('/', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const notifications = await NotificationModel.getAll();
@@ -26,10 +26,10 @@ router.get('/', authMiddleware, requireRole('admin'), async (req, res) => {
   }
 });
 
-// Mark as read
+
 router.put('/:id/read', authMiddleware, async (req, res) => {
   try {
-    // Verify user owns the notification
+    
     const notif = await pool.query(
       'SELECT user_id FROM notifications WHERE id = $1',
       [req.params.id]
@@ -51,10 +51,10 @@ router.put('/:id/read', authMiddleware, async (req, res) => {
   }
 });
 
-// Mark all as read
+
 router.put('/read-all', authMiddleware, async (req, res) => {
   try {
-    // Mark ALL my notifications as read
+    
     await NotificationModel.markAllAsRead(req.user.id);
     res.json({ success: true });
   } catch (error) {
@@ -63,7 +63,7 @@ router.put('/read-all', authMiddleware, async (req, res) => {
   }
 });
 
-// Delete notification
+
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const notif = await pool.query(

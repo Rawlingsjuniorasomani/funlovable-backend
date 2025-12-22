@@ -4,7 +4,7 @@ const pool = require('./db/pool');
 
 async function testTeacherAccess() {
     try {
-        // Get the teacher user
+        
         const userResult = await pool.query(`
             SELECT u.id, u.email, u.role, u.is_approved
             FROM users u
@@ -23,7 +23,7 @@ async function testTeacherAccess() {
         console.log('Approved:', user.is_approved);
         console.log('User ID:', user.id);
 
-        // Check user_roles table
+        
         const rolesResult = await pool.query(
             'SELECT role FROM user_roles WHERE user_id = $1',
             [user.id]
@@ -36,9 +36,9 @@ async function testTeacherAccess() {
             rolesResult.rows.forEach(r => console.log('-', r.role));
         }
 
-        // Simulate what requireRole does
+        
         const userRoles = rolesResult.rows.map(r => r.role);
-        userRoles.push(user.role); // Include the main role from users table
+        userRoles.push(user.role); 
 
         const requiredRoles = ['teacher'];
         const hasRole = requiredRoles.some(role => userRoles.includes(role));
@@ -48,7 +48,7 @@ async function testTeacherAccess() {
         console.log('Required Roles:', requiredRoles);
         console.log('Has Permission:', hasRole ? '✅ YES' : '❌ NO');
 
-        // Check teacher_subjects
+        
         const subjectsResult = await pool.query(`
             SELECT s.id, s.name
             FROM subjects s

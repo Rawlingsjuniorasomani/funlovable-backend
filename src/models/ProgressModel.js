@@ -4,34 +4,79 @@ class ProgressModel {
     static async trackLessonView(data) {
         const { lesson_id, student_id, duration_seconds, completed } = data;
 
-        const result = await pool.query(`
+        // 1. Log the view for analytics (keep existing logic)
+        await pool.query(`
             INSERT INTO lesson_views (lesson_id, student_id, duration_seconds, completed)
             VALUES ($1, $2, $3, $4)
-            RETURNING *
         `, [lesson_id, student_id, duration_seconds || 0, completed || false]);
 
+        // 2. Update the master progress record
+        const result = await pool.query(`
+            INSERT INTO user_progress (user_id, lesson_id, is_completed, time_spent_minutes, created_at, completed_at)
+            VALUES ($1, $2, $3, $4, NOW(), CASE WHEN $3 = true THEN NOW() ELSE NULL END)
+            ON CONFLICT (user_id, lesson_id)
+            DO UPDATE SET
+                time_spent_minutes = user_progress.time_spent_minutes + EXCLUDED.time_spent_minutes,
+                is_completed = user_progress.is_completed OR EXCLUDED.is_completed,
+                completed_at = CASE 
+                    WHEN user_progress.completed_at IS NOT NULL THEN user_progress.completed_at
+                    WHEN EXCLUDED.is_completed THEN NOW()
+                    ELSE NULL
+                END
+            RETURNING *
+        `, [student_id, lesson_id, completed || false, Math.ceil((duration_seconds || 0) / 60)]);
+
+        return result.rows[0];
+    }
+
+    static async updateQuizProgress(userId, lessonId, score, passed) {
+        const result = await pool.query(`
+            INSERT INTO user_progress (user_id, lesson_id, quiz_score, quiz_passed, is_completed, completed_at)
+            VALUES ($1, $2, $3, $4, $4, CASE WHEN $4 = true THEN NOW() ELSE NULL END)
+            ON CONFLICT (user_id, lesson_id)
+            DO UPDATE SET
+                quiz_score = GREATEST(user_progress.quiz_score, EXCLUDED.quiz_score),
+                quiz_passed = user_progress.quiz_passed OR EXCLUDED.quiz_passed,
+                is_completed = user_progress.is_completed OR EXCLUDED.is_completed,
+                completed_at = CASE 
+                    WHEN user_progress.completed_at IS NOT NULL THEN user_progress.completed_at
+                    WHEN EXCLUDED.quiz_passed THEN NOW()
+                    ELSE NULL
+                END
+            RETURNING *
+        `, [userId, lessonId, score, passed]);
         return result.rows[0];
     }
 
     static async getStudentProgress(studentId, filters = {}) {
         let query = `
-            SELECT lv.*, l.title as lesson_title, m.title as module_title
-            FROM lesson_views lv
-            JOIN lessons l ON lv.lesson_id = l.id
+            SELECT up.*, l.title as lesson_title, m.title as module_title, m.id as module_id
+            FROM user_progress up
+            JOIN lessons l ON up.lesson_id = l.id
             JOIN modules m ON l.module_id = m.id
-            WHERE lv.student_id = $1
+            WHERE up.user_id = $1
         `;
         const params = [studentId];
         let paramIndex = 2;
 
         if (filters.lesson_id) {
-            query += ` AND lv.lesson_id = $${paramIndex++}`;
+            query += ` AND up.lesson_id = $${paramIndex++}`;
             params.push(filters.lesson_id);
         }
 
-        query += ' ORDER BY lv.viewed_at DESC';
+        query += ' ORDER BY up.created_at DESC';
 
         const result = await pool.query(query, params);
+        return result.rows;
+    }
+
+    static async getModuleProgress(studentId, moduleId) {
+        const result = await pool.query(`
+            SELECT up.*, l.order_index
+            FROM user_progress up
+            JOIN lessons l ON up.lesson_id = l.id
+            WHERE up.user_id = $1 AND l.module_id = $2
+        `, [studentId, moduleId]);
         return result.rows;
     }
 

@@ -11,12 +11,12 @@ class NotificationService {
     }
 
     static async notifyClass({ subject_id, title, message, type, related_id, exclude_user_id }) {
-        // Get all students in subject
-        // For now, assuming we can get students via enrollment or simply broadcast if we had a joined table
-        // Let's assume we query enrollments. 
-        // Note: Check if we have an enrollment table or if we use student_subjects
         
-        // Simpler approach for now: Get all students linked to subject
+        
+        
+        
+        
+        
         const students = await pool.query(`
             SELECT student_id FROM student_subjects WHERE subject_id = $1
         `, [subject_id]);
@@ -29,7 +29,7 @@ class NotificationService {
             related_id
         }));
 
-        // Batch insert could be better, but loop is fine for MVP
+        
         for (const n of notifications) {
             if (n.user_id !== exclude_user_id) {
                 await this.createNotification(n);

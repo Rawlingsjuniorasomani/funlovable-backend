@@ -2,7 +2,7 @@ const axios = require('axios');
 
 async function testApi() {
     try {
-        // 1. Login as admin
+        
         console.log('Logging in...');
         const loginRes = await axios.post('http://localhost:5000/api/auth/admin/login', {
             email: 'admin@edulearn.com',
@@ -11,7 +11,7 @@ async function testApi() {
         const token = loginRes.data.token;
         console.log('✅ Logged in. Token:', token.substring(0, 20) + '...');
 
-        // 2. Call the failing endpoint
+        
         const userId = '0dabe83a-43f9-4118-aaff-3c72dacb5e7a';
         console.log(`\nRequesting /api/users/${userId}...`);
 

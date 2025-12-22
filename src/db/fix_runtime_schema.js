@@ -8,19 +8,19 @@ async function fixRuntimeSchema() {
     console.log('🔧 Applying runtime schema fixes...');
     await client.query('BEGIN');
 
-    // 1) subscriptions.updated_at required by SubscriptionModel.deactivateActive()
+    
     await client.query(`
       ALTER TABLE subscriptions
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
     `);
 
-    // 2) quizzes.subject_id required by QuizModel.getAllQuizzes() and other endpoints
+    
     await client.query(`
       ALTER TABLE quizzes
       ADD COLUMN IF NOT EXISTS subject_id UUID;
     `);
 
-    // Backfill quizzes.subject_id from modules.subject_id when possible
+    
     await client.query(`
       UPDATE quizzes q
       SET subject_id = m.subject_id
@@ -29,7 +29,7 @@ async function fixRuntimeSchema() {
         AND q.module_id = m.id;
     `);
 
-    // Ensure foreign key if subjects table exists
+    
     await client.query(`
       DO $$
       BEGIN
@@ -51,20 +51,20 @@ async function fixRuntimeSchema() {
       END$$;
     `);
 
-    // 3) quizzes.created_at used for ordering; add if missing
+    
     await client.query(`
       ALTER TABLE quizzes
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
     `);
 
-    // 4) quiz_questions column name mismatch: migrate.js uses "question", model uses "question_text"
-    // We'll add question_text if missing and backfill from question.
+    
+    
     await client.query(`
       ALTER TABLE quiz_questions
       ADD COLUMN IF NOT EXISTS question_text TEXT;
     `);
 
-    // Backfill only if legacy column "question" exists
+    
     await client.query(`
       DO $$
       BEGIN
@@ -90,7 +90,7 @@ async function fixRuntimeSchema() {
     process.exitCode = 1;
   } finally {
     client.release();
-    // Do not call pool.end(); keep consistent with other scripts that exit
+    
     process.exit();
   }
 }

@@ -9,32 +9,56 @@ const pool = require('./db/pool');
 
 const http = require('http');
 const { Server } = require('socket.io');
+const chatHandlers = require('./sockets/chatHandlers');
 
 const app = express();
 const server = http.createServer(app);
 
-// Socket.io setup
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://funlovable.vercel.app', 'https://funlovable-ashy.vercel.app'] : ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://funlovable.vercel.app', 'https://funlovable-ashy.vercel.app'],
+    origin: ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'http://localhost:5000'],
     credentials: true,
     methods: ["GET", "POST"]
   }
 });
 
-// Socket authentication: verify JWT on connect and attach user to socket
+
 io.use(async (socket, next) => {
   try {
-    // Token can be passed in handshake auth or query: { token: 'Bearer <token>' } or '?token=<token>'
-    const auth = socket.handshake.auth || {};
-    const tokenRaw = auth.token || socket.handshake.query?.token;
-    if (!tokenRaw) {
-      return next(); // allow unauthenticated sockets to connect but they won't be able to join-class
+    // -------------------------------------------------------------------------
+    // Custom Cookie Parser for Socket.IO (Fixes "Network connection fails")
+    // -------------------------------------------------------------------------
+    const parseCookies = (str) => {
+      if (!str) return {};
+      return str.split(';').reduce((acc, v) => {
+        const parts = v.split('=');
+        if (parts.length === 2) {
+          acc[parts[0].trim()] = decodeURIComponent(parts[1].trim());
+        }
+        return acc;
+      }, {});
+    };
+
+    const cookies = parseCookies(socket.handshake.headers.cookie);
+
+    // Check auth/query first, then cookie
+    let token = socket.handshake.auth?.token || socket.handshake.query?.token || cookies.token;
+
+    if (!token) {
+      // Allow connection without token?
+      // If we reject here, client gets "connect_error".
+      // Let's try to proceed as guest or fail gracefully.
+      // But for "join-class", we need a user.
+      console.log('Socket connecting without token... ID:', socket.id);
+      return next();
     }
 
-    const token = typeof tokenRaw === 'string' && tokenRaw.startsWith('Bearer ') ? tokenRaw.split(' ')[1] : tokenRaw;
+    // Clean Bearer prefix if present
+    if (token.startsWith('Bearer ')) token = token.split(' ')[1];
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // Fetch user from DB to populate roles/flags
+
     const result = await pool.query('SELECT id, name, email, role, is_approved, is_onboarded FROM users WHERE id = $1', [decoded.userId]);
     if (result.rows.length === 0) return next(new Error('Unauthorized'));
 
@@ -42,19 +66,18 @@ io.use(async (socket, next) => {
     next();
   } catch (err) {
     console.warn('Socket auth failed:', err.message || err);
-    // Don't allow an unauthenticated socket to proceed with privileged actions
     return next();
   }
 });
 
-// Store waiting students: { classId: [ { socketId, user: { id, name, role } } ] }
+
 const waitingRooms = {};
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   socket.on('join-class', ({ classId }) => {
-    // Use authenticated socket.user (set via io.use) — do not trust client-supplied user object
+
     const user = socket.user;
 
     if (!user) {
@@ -62,53 +85,33 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // If teacher, they join immediately and become host
+
     if (user.role === 'teacher' || user.role === 'admin') {
       socket.join(classId);
       socket.emit('joined', { isHost: true });
-      // Identify this socket as the host for this class (simplified)
+
       socket.to(classId).emit('host-joined');
 
-      // Send list of waiting students if any
+
       if (waitingRooms[classId]?.length > 0) {
         socket.emit('waiting-list', waitingRooms[classId]);
       }
     } else {
-      // If student, add to waiting room
+
       if (!waitingRooms[classId]) waitingRooms[classId] = [];
 
-      // Avoid duplicates
+
       if (!waitingRooms[classId].find(u => u.user.id === user.id)) {
         waitingRooms[classId].push({ socketId: socket.id, user });
       }
 
-      // Notify host (all teachers in the room)
+
       socket.to(classId).emit('student-waiting', { socketId: socket.id, user });
       socket.emit('waiting');
     }
   });
 
   socket.on('admit-student', ({ classId, socketId }) => {
-    // Security check: Only teachers/admins can admit
-    // We assume the user data passed in join-class is associated with the socket, 
-    // BUT we didn't store it server-side for the *sender* socket in this simple implementation.
-    // Ideally, we'd use a middleware to populate socket.user from JWT.
-    // For now, we'll check if this socket previously joined as a host.
-
-    // However, in the current simple memory store implementation, we don't track hosts explicitly by socketId except in local scope?
-    // Let's rely on the client sending user info or better, use a map.
-    // A quick improvement: Since we trust the initial join-class payload for role (which is also weak potentially if not verified against token), 
-    // we should really verify the token on connection. 
-
-    // Given the constraints and the "trust implementation" comment, I'll add a check based on 
-    // tracking hosts in a simple way or checking the payload if possible. 
-    // Since we don't have easy session tracking here without refactoring authentication fully into socket middleware (which is a larger task),
-    // I will add a TODO or a Basic check if I can.
-
-    // Refactoring to use middleware is best. 
-    // For this specific turn, I'll assume we want to fix the obvious hole.
-
-    // Let's implement a simple user mapping on join-class to verify role on subsequent actions.
     if (socket.user && (socket.user.role === 'teacher' || socket.user.role === 'admin')) {
       const studentEntry = waitingRooms[classId]?.find(s => s.socketId === socketId);
       if (studentEntry) {
@@ -121,13 +124,11 @@ io.on('connection', (socket) => {
         }
       }
     } else {
-      // If we don't have socket.user, we can't verify. 
-      // We need to attach user to socket on join.
       console.warn(`Unauthorized admit attempt by ${socket.id}`);
     }
   });
 
-  // Signaling for WebRTC
+
   socket.on('offer', (payload) => {
     io.to(payload.target).emit('offer', payload);
   });
@@ -142,32 +143,35 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
-    // Cleanup waiting rooms
+
     for (const classId in waitingRooms) {
       waitingRooms[classId] = waitingRooms[classId].filter(s => s.socketId !== socket.id);
     }
   });
+
+  // Initialize Chat Handlers
+  chatHandlers(io, socket);
 });
 
-// Middleware
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://funlovable.vercel.app', 'https://funlovable-ashy.vercel.app'] : ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'https://funlovable.vercel.app', 'https://funlovable-ashy.vercel.app'],
+  origin: ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173', 'http://localhost:5000'],
   credentials: true
 }));
 app.use(cookieParser());
 app.use(express.json());
 
-// Health check
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Root route
+
 app.get('/', (req, res) => {
   res.json({ message: 'E-Learning API is running 🚀', timestamp: new Date().toISOString() });
 });
 
-// Routes
+
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/subjects', require('./routes/subjects'));
@@ -194,7 +198,7 @@ app.use('/api/rewards', require('./routes/rewards'));
 app.use('/api', require('./routes/teacher_subjects'));
 app.use('/api/sms', require('./routes/sms'));
 
-// Error handling middleware
+
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({
@@ -203,7 +207,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
+
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
@@ -224,10 +228,10 @@ const startServer = async () => {
   }
 };
 
-// Only start server if not in Vercel serverless environment
+
 if (process.env.VERCEL !== '1') {
   startServer();
 }
 
-// Export app for Vercel serverless functions
+
 module.exports = app;

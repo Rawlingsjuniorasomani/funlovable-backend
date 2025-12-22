@@ -5,7 +5,7 @@ async function migrate() {
     try {
         console.log('🔄 Running migration: Add teacher fields...');
 
-        // Add columns if they don't exist
+        
         await pool.query(`
             ALTER TABLE teachers 
             ADD COLUMN IF NOT EXISTS years_of_experience INTEGER,

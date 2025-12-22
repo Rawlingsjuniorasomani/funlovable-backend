@@ -6,7 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Configure Multer Storage
+
 const uploadDir = path.join(__dirname, '../../uploads/lessons');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
@@ -24,10 +24,10 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+    limits: { fileSize: 50 * 1024 * 1024 } 
 });
 
-// GET all lessons (with filtering)
+
 router.get('/', authMiddleware, async (req, res) => {
     try {
         const { moduleId, teacherId, subjectId } = req.query;
@@ -51,10 +51,10 @@ router.get('/', authMiddleware, async (req, res) => {
             params.push(subjectId);
         }
 
-        // If teacher wants to see "My Lessons", valid check
+        
         const effectiveTeacherId = teacherId || (req.user?.role === 'teacher' ? req.user.id : null);
         if (effectiveTeacherId) {
-            // Lessons linked to modules linked to subjects linked to teacher_subjects
+            
             query += ` AND EXISTS (
                 SELECT 1
                 FROM teacher_subjects ts
@@ -73,7 +73,7 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 });
 
-// GET single lesson
+
 router.get('/:id', authMiddleware, async (req, res) => {
     try {
         const result = await pool.query('SELECT * FROM lessons WHERE id = $1', [req.params.id]);
@@ -86,10 +86,10 @@ router.get('/:id', authMiddleware, async (req, res) => {
     }
 });
 
-// CREATE Lesson (with file)
+
 router.post('/', authMiddleware, upload.single('file'), async (req, res) => {
     try {
-        // Note: If using FormData, fields are strings. Conversion might be needed.
+        
         const {
             module_id,
             title,
@@ -110,12 +110,12 @@ router.post('/', authMiddleware, upload.single('file'), async (req, res) => {
             attachment_type = req.file.mimetype;
         }
 
-        // Validation
+        
         if (!title || !module_id) {
             return res.status(400).json({ error: 'Title and Module are required' });
         }
 
-        // Verify Module ownership (if teacher)
+        
         if (req.user.role === 'teacher') {
             const modCheck = await pool.query(`
             SELECT ts.teacher_id 
@@ -151,15 +151,15 @@ router.post('/', authMiddleware, upload.single('file'), async (req, res) => {
     }
 });
 
-// Update Lesson
+
 router.put('/:id', authMiddleware, async (req, res) => {
     try {
-        // Only teachers and admins can update lessons; teachers can only update their own
+        
         if (!['teacher', 'admin'].includes(req.user.role)) {
             return res.status(403).json({ error: 'Only teachers can update lessons' });
         }
 
-        // Check access: teachers can only update lessons in their assigned subjects
+        
         if (req.user.role === 'teacher') {
             const accessCheck = await pool.query(
                 `SELECT 1
@@ -196,15 +196,15 @@ router.put('/:id', authMiddleware, async (req, res) => {
     }
 });
 
-// Delete Lesson
+
 router.delete('/:id', authMiddleware, async (req, res) => {
     try {
-        // Only teachers and admins can delete lessons; teachers can only delete their own
+        
         if (!['teacher', 'admin'].includes(req.user.role)) {
             return res.status(403).json({ error: 'Only teachers can delete lessons' });
         }
 
-        // Check access: teachers can only delete lessons in their assigned subjects
+        
         if (req.user.role === 'teacher') {
             const accessCheck = await pool.query(
                 `SELECT 1
@@ -229,7 +229,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     }
 });
 
-// Complete Lesson (Student)
+
 router.post('/:id/complete', authMiddleware, async (req, res) => {
     try {
         if (req.user.role !== 'student') return res.status(403).json({ error: 'Students only' });

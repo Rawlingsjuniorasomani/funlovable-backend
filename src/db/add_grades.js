@@ -9,7 +9,7 @@ async function addGradesTables() {
 
         await client.query('BEGIN');
 
-        // Create grades table
+        
         await client.query(`
             CREATE TABLE IF NOT EXISTS grades (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -28,7 +28,7 @@ async function addGradesTables() {
             );
         `);
 
-        // Create report_cards table
+        
         await client.query(`
             CREATE TABLE IF NOT EXISTS report_cards (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -45,7 +45,7 @@ async function addGradesTables() {
             );
         `);
 
-        // Create indexes
+        
         await client.query(`
             CREATE INDEX IF NOT EXISTS idx_grades_student ON grades(student_id);
             CREATE INDEX IF NOT EXISTS idx_grades_subject ON grades(subject_id);

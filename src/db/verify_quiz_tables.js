@@ -7,7 +7,7 @@ async function verifyQuizTables() {
     try {
         console.log('🔍 Verifying quiz tables...\n');
 
-        // Check quizzes table columns
+        
         const quizzesColumns = await client.query(`
             SELECT column_name, data_type, column_default
             FROM information_schema.columns
@@ -19,7 +19,7 @@ async function verifyQuizTables() {
             console.log(`  - ${col.column_name} (${col.data_type})`);
         });
 
-        // Check quiz_questions table columns
+        
         const questionsColumns = await client.query(`
             SELECT column_name, data_type
             FROM information_schema.columns
@@ -31,7 +31,7 @@ async function verifyQuizTables() {
             console.log(`  - ${col.column_name} (${col.data_type})`);
         });
 
-        // Check quiz_attempts table columns
+        
         const attemptsColumns = await client.query(`
             SELECT column_name, data_type
             FROM information_schema.columns
@@ -43,7 +43,7 @@ async function verifyQuizTables() {
             console.log(`  - ${col.column_name} (${col.data_type})`);
         });
 
-        // Check quiz_answers table
+        
         const answersTable = await client.query(`
             SELECT column_name, data_type
             FROM information_schema.columns
@@ -59,7 +59,7 @@ async function verifyQuizTables() {
             console.log('  ❌ Table not found');
         }
 
-        // Check indexes
+        
         const indexes = await client.query(`
             SELECT indexname, tablename
             FROM pg_indexes

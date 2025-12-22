@@ -16,7 +16,7 @@ async function testSuperAdmin() {
         `, [adminEmail, pwHash]);
         const adminId = adminRes.rows[0].id;
 
-        // Login to get token
+        
         const loginRes = await fetch(`${API_URL}/auth/admin/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -30,7 +30,7 @@ async function testSuperAdmin() {
         const token = loginData.token;
         console.log("✅ Primary Admin Logged In");
 
-        // 2. Invite New Admin
+        
         console.log("2. Inviting Secondary Admin...");
         const newAdminEmail = `new_admin_${Date.now()}@test.com`;
         const inviteRes = await fetch(`${API_URL}/users/admins/invite`, {
@@ -49,7 +49,7 @@ async function testSuperAdmin() {
         const invitedAdmin = await inviteRes.json();
         console.log("Invited Admin ID:", invitedAdmin.id);
 
-        // 3. Promote to Super Admin
+        
         console.log("3. Promoting to Super Admin...");
         const promoteRes = await fetch(`${API_URL}/users/${invitedAdmin.id}/promote`, {
             method: 'POST',
@@ -57,7 +57,7 @@ async function testSuperAdmin() {
         });
         console.log("Promote response:", await promoteRes.json());
 
-        // 4. Verify List
+        
         console.log("4. Verifying Admin List...");
         const listRes = await fetch(`${API_URL}/users/admins/list`, {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -73,7 +73,7 @@ async function testSuperAdmin() {
             console.error("❌ FAILURE: User is NOT Super Admin");
         }
 
-        // Cleanup
+        
         await pool.query('DELETE FROM users WHERE id = $1 OR id = $2', [adminId, invitedAdmin.id]);
         await pool.query('DELETE FROM user_roles WHERE user_id = $1', [invitedAdmin.id]);
 

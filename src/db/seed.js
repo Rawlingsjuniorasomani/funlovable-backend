@@ -8,7 +8,7 @@ async function seed() {
   try {
     console.log('🌱 Seeding database...');
 
-    // Create admin user
+    
     const adminPassword = await bcrypt.hash('admin123', 10);
     const adminEmail = 'admin@edulearn.com';
 
@@ -21,14 +21,14 @@ async function seed() {
 
     const adminId = adminResult.rows[0].id;
 
-    // Add admin role
+    
     await pool.query(`
       INSERT INTO user_roles (user_id, role)
       VALUES ($1, 'admin')
       ON CONFLICT (user_id, role) DO NOTHING
     `, [adminId]);
 
-    // Create sample teacher
+    
     const teacherPassword = await bcrypt.hash('teacher123', 10);
     const teacherEmail = 'teacher@edulearn.com';
 
@@ -41,7 +41,7 @@ async function seed() {
 
     const teacherId = teacherResult.rows[0].id;
 
-    // Create sample subjects
+    
     const subjects = [
       { name: 'Mathematics', description: 'Learn algebra, geometry, and more', icon: 'Calculator', color: 'blue', grade: 'JHS 1' },
       { name: 'English Language', description: 'Master grammar and composition', icon: 'BookOpen', color: 'green', grade: 'JHS 1' },
@@ -55,7 +55,7 @@ async function seed() {
         [subject.name]
       );
 
-      // If the subject already exists, do not create another copy or reseed its content.
+      
       if (existingSubject.rows.length > 0) {
         continue;
       }
@@ -67,7 +67,7 @@ async function seed() {
         [subjectId, subject.name, subject.description, subject.icon, subject.color, subject.grade, teacherId]
       );
 
-      // Create sample module for each subject
+      
       const moduleId = uuidv4();
       await pool.query(`
         INSERT INTO modules (id, subject_id, title, description, order_index)
@@ -75,7 +75,7 @@ async function seed() {
         ON CONFLICT DO NOTHING
       `, [moduleId, subjectId, `Introduction to ${subject.name}`, `Start your ${subject.name} journey`, 1]);
 
-      // Create sample lesson
+      
       const lessonId = uuidv4();
       await pool.query(`
         INSERT INTO lessons (id, module_id, title, content, duration_minutes, xp_reward)
@@ -83,7 +83,7 @@ async function seed() {
         ON CONFLICT DO NOTHING
       `, [lessonId, moduleId, `Welcome to ${subject.name}`, `This is your first lesson in ${subject.name}. Let's get started!`, 15, 20]);
 
-      // Create sample quiz
+      
       const quizId = uuidv4();
       await pool.query(`
         INSERT INTO quizzes (id, lesson_id, module_id, title, description, time_limit_minutes, passing_score, xp_reward)
@@ -91,7 +91,7 @@ async function seed() {
         ON CONFLICT DO NOTHING
       `, [quizId, lessonId, moduleId, `${subject.name} Quiz 1`, 'Test your knowledge', 15, 70, 50]);
 
-      // Add sample question
+      
       await pool.query(`
         INSERT INTO quiz_questions (quiz_id, question_text, question_type, options, correct_answer, points)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -101,7 +101,7 @@ async function seed() {
         'Learning new things', 10]);
     }
 
-    // Create sample achievements
+    
     const achievements = [
       { name: 'First Steps', description: 'Complete your first lesson', icon: '🎯', xp: 50 },
       { name: 'Quiz Master', description: 'Score 100% on any quiz', icon: '🏆', xp: 100 },

@@ -34,9 +34,9 @@ async function cleanSubjects() {
 
 
 
-        // User asked to "delete it from the database and allow teacher to select a subject"
-        // I will wipe teacher_subjects for now to allow a fresh start if that's what they mean.
-        // But better to just show it first.
+        
+        
+        
 
     } catch (err) {
         console.error('❌ Error:', err);

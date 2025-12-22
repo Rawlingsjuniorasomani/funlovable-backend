@@ -9,7 +9,7 @@ async function addAttendanceTable() {
 
         await client.query('BEGIN');
 
-        // Create attendance table
+        
         await client.query(`
             CREATE TABLE IF NOT EXISTS attendance (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -25,7 +25,7 @@ async function addAttendanceTable() {
             );
         `);
 
-        // Create indexes
+        
         await client.query(`
             CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date);
             CREATE INDEX IF NOT EXISTS idx_attendance_student ON attendance(student_id);

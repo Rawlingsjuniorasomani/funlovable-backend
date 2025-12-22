@@ -17,8 +17,8 @@ class PaymentController {
 
             if (result && result.token) {
                 console.log(`[PaymentController.verify] Existing request cookies:`, req.cookies);
-                // Clear any existing token cookie first to avoid stale session being reused
-                // Important: clear with same options used for setting (path/sameSite/secure)
+                
+                
                 const cookieOptions = {
                     secure: process.env.NODE_ENV === 'production',
                     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
@@ -41,7 +41,7 @@ class PaymentController {
             } else {
                 console.warn('[PaymentController.verify] No token returned from verifyPayment');
 
-                // Still clear any stale cookie so a previous admin session can't hijack post-payment routing
+                
                 const cookieOptions = {
                     secure: process.env.NODE_ENV === 'production',
                     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
@@ -79,7 +79,7 @@ class PaymentController {
                     return res.status(500).json({ error: error.message, details });
                 }
 
-                // In development return the underlying error to help debugging; in production keep generic
+                
                 if (process.env.NODE_ENV === 'development') {
                     return res.status(500).json({ error: error.message || 'Initialization failed', details });
                 }

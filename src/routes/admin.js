@@ -5,10 +5,10 @@ const pool = require('../db/pool');
 
 const router = express.Router();
 
-// Get Dashboard Stats (students, teachers, revenue, etc.)
+
 router.get('/stats', authMiddleware, requireRole('admin'), AdminController.getStats);
 
-// Get all payments with subscription details (admin only)
+
 router.get('/payments', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const { status, userId, limit = 50, offset = 0 } = req.query;
@@ -62,7 +62,7 @@ router.get('/payments', authMiddleware, requireRole('admin'), async (req, res) =
 
     const result = await pool.query(query, params);
 
-    // Get total count
+    
     let countQuery = `SELECT COUNT(*) as total FROM payments p WHERE 1=1`;
     const countParams = [];
     let countParamCount = 1;
@@ -93,7 +93,7 @@ router.get('/payments', authMiddleware, requireRole('admin'), async (req, res) =
   }
 });
 
-// Get all subscriptions (admin only)
+
 router.get('/subscriptions', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const { status, plan, limit = 50, offset = 0 } = req.query;
@@ -137,7 +137,7 @@ router.get('/subscriptions', authMiddleware, requireRole('admin'), async (req, r
 
     const result = await pool.query(query, params);
 
-    // Get total count
+    
     let countQuery = `SELECT COUNT(*) as total FROM subscriptions s WHERE 1=1`;
     const countParams = [];
     let countParamCount = 1;
@@ -168,7 +168,7 @@ router.get('/subscriptions', authMiddleware, requireRole('admin'), async (req, r
   }
 });
 
-// Update subscription (admin only)
+
 router.put('/subscriptions/:id', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;

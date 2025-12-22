@@ -1,7 +1,8 @@
 const QuizService = require('../services/QuizService');
+const ProgressModel = require('../models/ProgressModel'); // Import ProgressModel
 
 class QuizController {
-  // Get all quizzes (with filters)
+
   static async getAll(req, res) {
     try {
       const filters = {};
@@ -19,7 +20,7 @@ class QuizController {
     }
   }
 
-  // Create quiz
+
   static async create(req, res) {
     try {
       const quizData = {
@@ -35,12 +36,12 @@ class QuizController {
     }
   }
 
-  // Update quiz
+
   static async update(req, res) {
     try {
       const { id } = req.params;
-      
-      // Check ownership: teachers can only update their own quizzes
+
+
       if (req.user.role === 'teacher') {
         const quiz = await QuizService.getQuizById(id);
         if (String(quiz.teacher_id) !== String(req.user.id)) {
@@ -61,7 +62,7 @@ class QuizController {
     }
   }
 
-  // Publish quiz
+
   static async publish(req, res) {
     try {
       const { id } = req.params;
@@ -78,7 +79,7 @@ class QuizController {
     }
   }
 
-  // Get quiz by ID
+
   static async getOne(req, res) {
     try {
       const quiz = await QuizService.getQuizById(req.params.id);
@@ -92,7 +93,7 @@ class QuizController {
     }
   }
 
-  // Get quizzes by subject
+
   static async getBySubject(req, res) {
     try {
       const quizzes = await QuizService.getQuizzesBySubject(req.params.subjectId);
@@ -103,7 +104,7 @@ class QuizController {
     }
   }
 
-  // Get available quizzes for student
+
   static async getAvailable(req, res) {
     try {
       const quizzes = await QuizService.getAvailableQuizzes(req.user.id);
@@ -114,7 +115,7 @@ class QuizController {
     }
   }
 
-  // Add question to quiz
+
   static async addQuestion(req, res) {
     try {
       const questionData = {
@@ -130,7 +131,7 @@ class QuizController {
     }
   }
 
-  // Get quiz questions
+
   static async getQuestions(req, res) {
     try {
       const { id } = req.params;
@@ -138,7 +139,7 @@ class QuizController {
 
       const questions = await QuizService.getQuestions(id, randomize === 'true');
 
-      // Security: Hide correct answers for students
+
       if (req.user.role === 'student') {
         const sanitizedQuestions = questions.map(q => {
           const { correct_answer, ...rest } = q;
@@ -154,7 +155,7 @@ class QuizController {
     }
   }
 
-  // Update question
+
   static async updateQuestion(req, res) {
     try {
       const { questionId } = req.params;
@@ -171,7 +172,7 @@ class QuizController {
     }
   }
 
-  // Delete question
+
   static async deleteQuestion(req, res) {
     try {
       const { questionId } = req.params;
@@ -183,7 +184,7 @@ class QuizController {
     }
   }
 
-  // Start quiz attempt
+
   static async startAttempt(req, res) {
     try {
       const { id } = req.params;
@@ -195,7 +196,7 @@ class QuizController {
     }
   }
 
-  // Save answer
+
   static async saveAnswer(req, res) {
     try {
       const { attemptId } = req.params;
@@ -212,13 +213,33 @@ class QuizController {
     }
   }
 
-  // Submit quiz
+
+
+
   static async submit(req, res) {
     try {
       const { attemptId } = req.params;
       const { time_taken_seconds } = req.body;
 
       const attempt = await QuizService.submitQuiz(attemptId, time_taken_seconds);
+
+      // Sync with Progress Model
+      if (req.user && req.user.role === 'student') {
+        // Get quiz to check linked lesson
+        const quiz = await QuizService.getQuizById(attempt.quiz_id);
+        if (quiz && quiz.lesson_id) {
+          // Calculate percentage score
+          const rawScore = attempt.auto_graded_score || 0;
+          const totalMarks = quiz.total_marks || 100; // avoid division by zero
+          const percentageScore = Math.round((rawScore / totalMarks) * 100);
+
+          const passMark = quiz.pass_mark || 60;
+          const passed = percentageScore >= passMark;
+
+          await ProgressModel.updateQuizProgress(req.user.id, quiz.lesson_id, percentageScore, passed);
+        }
+      }
+
       res.json(attempt);
     } catch (error) {
       console.error('Submit quiz error:', error);
@@ -226,7 +247,7 @@ class QuizController {
     }
   }
 
-  // Get attempt results
+
   static async getAttemptResults(req, res) {
     try {
       const { attemptId } = req.params;
@@ -247,7 +268,7 @@ class QuizController {
     }
   }
 
-  // Get quiz attempts (teacher)
+
   static async getAttempts(req, res) {
     try {
       const { id } = req.params;
@@ -259,7 +280,7 @@ class QuizController {
     }
   }
 
-  // Grade answer (teacher)
+
   static async gradeAnswer(req, res) {
     try {
       const { answerId } = req.params;
@@ -273,7 +294,7 @@ class QuizController {
     }
   }
 
-  // Release results (teacher)
+
   static async releaseResults(req, res) {
     try {
       const { attemptId } = req.params;
@@ -290,7 +311,7 @@ class QuizController {
     }
   }
 
-  // Update attempt feedback (teacher)
+
   static async updateFeedback(req, res) {
     try {
       const { attemptId } = req.params;

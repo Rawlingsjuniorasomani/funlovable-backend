@@ -16,7 +16,7 @@ class SubjectService {
     static async createSubject(data, user = null) {
         const subject = await SubjectModel.create(data);
 
-        // If created by a teacher, automatically link it to them
+        
         if (user && user.role === 'teacher') {
             await SubjectModel.linkTeacher(user.id, subject.id);
         }

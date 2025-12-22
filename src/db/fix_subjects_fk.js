@@ -12,11 +12,11 @@ async function fixConstraint() {
     try {
         console.log('Starting constraint fix...');
 
-        // 1. Drop the existing constraint
+        
         console.log('Dropping old constraint...');
         await client.query('ALTER TABLE subjects DROP CONSTRAINT IF EXISTS subjects_teacher_id_fkey');
 
-        // 2. Add new constraint with ON DELETE SET NULL
+        
         console.log('Adding new constraint with ON DELETE SET NULL...');
         await client.query(`
       ALTER TABLE subjects

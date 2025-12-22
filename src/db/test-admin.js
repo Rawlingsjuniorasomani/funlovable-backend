@@ -9,7 +9,7 @@ async function testAdminLogin() {
         const email = 'admin@edulearn.com';
         const password = 'admin123';
 
-        // Check if user exists
+        
         const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
         console.log('User found:', userResult.rows.length > 0);
 
@@ -22,11 +22,11 @@ async function testAdminLogin() {
                 is_approved: user.is_approved
             });
 
-            // Test password
+            
             const isValid = await bcrypt.compare(password, user.password_hash);
             console.log('Password valid:', isValid);
 
-            // Check user_roles
+            
             const rolesResult = await pool.query('SELECT * FROM user_roles WHERE user_id = $1', [user.id]);
             console.log('User roles:', rolesResult.rows);
         }

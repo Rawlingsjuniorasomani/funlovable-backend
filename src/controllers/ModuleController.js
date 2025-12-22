@@ -1,4 +1,6 @@
 const ModuleService = require('../services/ModuleService');
+const ProgressModel = require('../models/ProgressModel'); // Import ProgressModel
+const LessonService = require('../services/LessonService'); // Import LessonService
 
 class ModuleController {
     static async getAll(req, res) {
@@ -11,7 +13,7 @@ class ModuleController {
 
             const pool = require('../db/pool');
 
-            // Return scoped modules by role
+
             if (req.user?.role === 'teacher') {
                 const result = await pool.query(`
                     SELECT m.*, 
@@ -48,10 +50,18 @@ class ModuleController {
         }
     }
 
+
+
     static async getBySubject(req, res) {
         try {
             const { subjectId } = req.params;
-            const modules = await ModuleService.getModulesBySubject(subjectId);
+            let modules = await ModuleService.getModulesBySubject(subjectId);
+
+            if (req.user && req.user.role === 'student') {
+                const modules = await ModuleService.getModulesWithProgress(req.user.id, subjectId);
+                return res.json(modules);
+            }
+
             res.json(modules);
         } catch (error) {
             console.error(error);

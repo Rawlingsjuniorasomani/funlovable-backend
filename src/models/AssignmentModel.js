@@ -53,8 +53,8 @@ class AssignmentModel {
     }
 
     static async findAllByStudent(studentId) {
-        // Temporary: Return all assignments to ensure visibility
-        // In future, we can add logic to filter by student's class (e.g. JHS 1)
+
+
         const result = await pool.query(
             `SELECT a.*, sa.status as submission_status, sa.submitted_at, sa.score
              FROM assignments a
@@ -85,7 +85,7 @@ class AssignmentModel {
 
             console.log('Submitting assignment:', { assignment_id, student_id, answersCount: answers.length });
 
-            // 1. Create/Update Submission
+
             const submissionResult = await client.query(
                 `INSERT INTO student_assignments (assignment_id, student_id, content, file_url, status, submitted_at)
                  VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
@@ -100,12 +100,12 @@ class AssignmentModel {
             );
             const submission = submissionResult.rows[0];
 
-            // 2. Process Answers & Auto-Grade
+
             let totalScore = 0;
 
-            // If answers provided in payload, process them (legacy/bulk mode)
+
             if (answers && answers.length > 0) {
-                // Fetch questions to check correct answers
+
                 const questionsResult = await client.query(
                     'SELECT id, question_type, correct_answer, marks FROM assignment_questions WHERE assignment_id = $1',
                     [assignment_id]
@@ -118,9 +118,9 @@ class AssignmentModel {
                     let marks = 0;
 
                     if (question) {
-                        // Simple auto-grading for objective types
+
                         if (['mcq', 'true_false'].includes(question.question_type)) {
-                            // Case insensitive check
+
                             if (String(ans.answer).trim().toLowerCase() === String(question.correct_answer).trim().toLowerCase()) {
                                 isCorrect = true;
                                 marks = parseFloat(question.marks) || 1;
@@ -129,7 +129,7 @@ class AssignmentModel {
                     }
                     totalScore += marks;
 
-                    // Save Answer
+
                     await client.query(
                         `INSERT INTO student_assignment_answers (assignment_submission_id, question_id, answer_text, is_correct, marks_awarded)
                          VALUES ($1, $2, $3, $4, $5)
@@ -139,7 +139,7 @@ class AssignmentModel {
                     );
                 }
             } else {
-                // If answers NOT provided, calculate score from ALREADY SAVED answers
+
                 const storedAnswers = await client.query(
                     'SELECT marks_awarded FROM student_assignment_answers WHERE assignment_submission_id = $1',
                     [submission.id]
@@ -147,15 +147,15 @@ class AssignmentModel {
                 totalScore = storedAnswers.rows.reduce((acc, row) => acc + (parseFloat(row.marks_awarded) || 0), 0);
             }
 
-            // Update submission score if strictly auto-graded (or partial)
-            // Only update score if status is becoming 'submitted' (or if we want real-time score updates, but usually on submit)
+
+
             if (status === 'submitted') {
-                await client.query('UPDATE student_assignments SET score = $1, status = $2 WHERE id = $3', [totalScore, 'graded', submission.id]); // Auto-grade moves to 'graded' immediately for objective, or 'submitted' if mixed? 
-                // User requirement: "automatically grade them". So let's set to 'graded' if it's purely auto-gradable types?
-                // For safety, if it's mixed, maybe keep as 'submitted'? 
-                // But user wants "grade them". 
-                // Let's assume for now we mark as 'graded' so student sees green/red immediately.
-                // WE SHOULD CHECK if there are any subjective questions (short_answer) that need teacher review.
+                await client.query('UPDATE student_assignments SET score = $1, status = $2 WHERE id = $3', [totalScore, 'graded', submission.id]);
+
+
+
+
+
 
                 const questionsCheck = await client.query(
                     `SELECT COUNT(*) as subjective_count FROM assignment_questions 
@@ -170,7 +170,7 @@ class AssignmentModel {
                 submission.score = totalScore;
                 submission.status = finalStatus;
             } else {
-                // Update score for draft too? Maybe not.
+
                 await client.query('UPDATE student_assignments SET score = $1 WHERE id = $2', [totalScore, submission.id]);
                 submission.score = totalScore;
             }
@@ -185,19 +185,19 @@ class AssignmentModel {
         }
     }
 
-    // Add method to get submissions for grading
+
     static async getSubmissions(assignmentId) {
         const result = await pool.query(`
             SELECT sa.*, u.name as student_name, u.email as student_email, u.avatar as student_avatar
             FROM student_assignments sa
-            JOIN users u ON sa.student_id::text = u.id
+            JOIN users u ON sa.student_id = u.id
             WHERE sa.assignment_id = $1
             ORDER BY sa.submitted_at DESC
         `, [assignmentId]);
         return result.rows;
     }
 
-    // Add method to grade submission
+
     static async gradeSubmission(id, { score, feedback }) {
         const result = await pool.query(`
             UPDATE student_assignments
@@ -207,7 +207,7 @@ class AssignmentModel {
         `, [score, feedback, id]);
         return result.rows[0];
     }
-    // Question Management
+
     static async addQuestion(data) {
         const { assignment_id, question_text, question_type, options, correct_answer, marks, order_index, required = true, media_url } = data;
         const result = await pool.query(`
@@ -254,9 +254,9 @@ class AssignmentModel {
         await pool.query('DELETE FROM assignment_questions WHERE id = $1', [id]);
     }
 
-    // Answer Management
+
     static async saveAnswer({ assignment_submission_id, question_id, answer_text }) {
-        // First get the question to check for auto-grading
+
         const questionRes = await pool.query('SELECT * FROM assignment_questions WHERE id = $1', [question_id]);
         const question = questionRes.rows[0];
 

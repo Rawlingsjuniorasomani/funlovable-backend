@@ -17,7 +17,7 @@ async function migrate() {
 
         console.log('Adding fields to lessons table...');
 
-        // Add columns if they don't exist
+        
         await client.query(`
             ALTER TABLE lessons 
             ADD COLUMN IF NOT EXISTS topic VARCHAR(255),

@@ -33,7 +33,7 @@ class AttendanceController {
                 return res.status(400).json({ error: 'Invalid attendance records' });
             }
 
-            // Add teacher_id to each record
+            
             const recordsWithTeacher = attendance_records.map(record => ({
                 ...record,
                 teacher_id: req.user.id

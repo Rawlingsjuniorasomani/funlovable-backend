@@ -9,7 +9,7 @@ async function addMessagingTables() {
 
         await client.query('BEGIN');
 
-        // Create messages table
+        
         await client.query(`
             CREATE TABLE IF NOT EXISTS messages (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -23,7 +23,7 @@ async function addMessagingTables() {
             );
         `);
 
-        // Create class_announcements table
+        
         await client.query(`
             CREATE TABLE IF NOT EXISTS class_announcements (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -37,7 +37,7 @@ async function addMessagingTables() {
             );
         `);
 
-        // Create indexes
+        
         await client.query(`
             CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
             CREATE INDEX IF NOT EXISTS idx_messages_read ON messages(is_read);

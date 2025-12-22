@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 
 async function checkCurrentUser() {
     try {
-        // Get all users to see who might be logging in
+        
         const users = await pool.query(`
             SELECT u.id, u.email, u.role, u.is_approved,
                    COALESCE(bool_or(ur.role = 'super_admin'), false) as is_super_admin
@@ -24,7 +24,7 @@ async function checkCurrentUser() {
             console.log('---');
         });
 
-        // Check teacher_subjects table
+        
         const teacherSubjects = await pool.query(`
             SELECT ts.teacher_id, u.email, ts.subject_id, s.name as subject_name
             FROM teacher_subjects ts

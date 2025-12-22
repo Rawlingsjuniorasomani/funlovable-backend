@@ -6,11 +6,11 @@ async function testPaystack() {
     console.log('Testing Paystack Initialization...');
     console.log('Secret Key (first 5 chars):', process.env.PAYSTACK_SECRET_KEY?.substring(0, 5));
 
-    // Test Data
+    
     const payload = {
         email: 'test_user@example.com',
-        amount: 5000, // 50.00
-        currency: 'GHS', // Testing the user's preferred currency
+        amount: 5000, 
+        currency: 'GHS', 
         callback_url: 'http://localhost:8080/payment/verify',
         metadata: {
             custom_field: 'debug_test'

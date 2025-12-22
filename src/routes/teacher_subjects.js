@@ -4,7 +4,7 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Replace all assigned subjects for a teacher
+
 router.put('/teachers/:teacherId/subjects', authMiddleware, requireRole(['admin']), async (req, res) => {
   try {
     const { teacherId } = req.params;
@@ -18,17 +18,17 @@ router.put('/teachers/:teacherId/subjects', authMiddleware, requireRole(['admin'
     try {
       await client.query('BEGIN');
 
-      // Validate teacher
+      
       const teacherCheck = await client.query('SELECT id FROM users WHERE id = $1 AND role = $2', [teacherId, 'teacher']);
       if (teacherCheck.rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Teacher not found' });
       }
 
-      // Remove existing assignments
+      
       await client.query('DELETE FROM teacher_subjects WHERE teacher_id = $1', [teacherId]);
 
-      // Insert new assignments
+      
       for (const subjectId of subjectIds) {
         if (typeof subjectId !== 'string' || subjectId.length < 10) continue;
         await client.query(

@@ -3,7 +3,11 @@ const pool = require('../db/pool');
 class LessonModel {
     static async findAllByModuleId(moduleId) {
         const result = await pool.query(
-            'SELECT * FROM lessons WHERE module_id = $1 ORDER BY order_index',
+            `SELECT l.*, q.id as quiz_id 
+             FROM lessons l 
+             LEFT JOIN quizzes q ON l.id = q.lesson_id 
+             WHERE l.module_id = $1 
+             ORDER BY l.order_index`,
             [moduleId]
         );
         return result.rows;

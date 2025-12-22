@@ -35,7 +35,7 @@ class SubjectController {
 
     static async create(req, res) {
         try {
-            // Pass req.user to service to handle linking
+            
             const subject = await SubjectService.createSubject(req.body, req.user);
             res.status(201).json(subject);
         } catch (error) {
@@ -72,7 +72,7 @@ class SubjectController {
 
     static async getTeacherSubjects(req, res) {
         try {
-            // Using req.user.id from authMiddleware
+            
             const subjects = await SubjectService.getTeacherSubjects(req.user.id);
             res.json(subjects);
         } catch (error) {

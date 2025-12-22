@@ -2,13 +2,13 @@ const pool = require('../db/pool');
 
 class MessagingModel {
     static async sendMessage(data) {
-        const { sender_id, recipient_id, subject, message, parent_message_id } = data;
+        const { sender_id, recipient_id, message } = data;
 
         const result = await pool.query(`
-            INSERT INTO messages (sender_id, recipient_id, subject, message, parent_message_id)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO messages (sender_id, receiver_id, content)
+            VALUES ($1, $2, $3)
             RETURNING *
-        `, [sender_id, recipient_id, subject, message, parent_message_id || null]);
+        `, [sender_id, recipient_id, message]);
 
         return result.rows[0];
     }
@@ -20,8 +20,8 @@ class MessagingModel {
                    u.email as sender_email,
                    u.role as sender_role
             FROM messages m
-            JOIN users u ON m.sender_id::text = u.id
-            WHERE m.recipient_id = $1
+            JOIN users u ON m.sender_id::text = u.id::text
+            WHERE m.receiver_id::text = $1::text
             ORDER BY m.created_at DESC
         `, [userId]);
 
@@ -34,8 +34,8 @@ class MessagingModel {
                    u.name as recipient_name, 
                    u.email as recipient_email
             FROM messages m
-            LEFT JOIN users u ON m.recipient_id::text = u.id
-            WHERE m.sender_id = $1
+            LEFT JOIN users u ON m.receiver_id::text = u.id::text
+            WHERE m.sender_id::text = $1::text
             ORDER BY m.created_at DESC
         `, [userId]);
 
@@ -68,7 +68,7 @@ class MessagingModel {
                    u.name as teacher_name,
                    s.name as subject_name
             FROM class_announcements a
-            JOIN users u ON a.teacher_id::text = u.id
+            JOIN users u ON a.teacher_id::text = u.id::text
             LEFT JOIN subjects s ON a.subject_id = s.id
             WHERE 1=1
         `;

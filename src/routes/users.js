@@ -7,8 +7,8 @@ const router = express.Router();
 
 
 
-// Get all users (admin only)
-// Get all users (admin and teacher)
+
+
 router.get('/', authMiddleware, requireRole(['admin', 'teacher']), async (req, res) => {
   try {
     const { role, status } = req.query;
@@ -108,7 +108,7 @@ router.get('/', authMiddleware, requireRole(['admin', 'teacher']), async (req, r
 
     const result = await pool.query(query, params);
 
-    // Transform data to match frontend expectations
+
     const users = result.rows.map(user => ({
       ...user,
       children: Array.isArray(user.children) ? user.children : Array(user.children_count).fill({}),
@@ -127,18 +127,18 @@ router.get('/', authMiddleware, requireRole(['admin', 'teacher']), async (req, r
   }
 });
 
-// Generate OTP (Authenticated users)
+
 router.post('/generate-otp', authMiddleware, async (req, res) => {
   try {
     const OtpService = require('../services/OtpService');
     const { type = 'sensitive_action' } = req.body;
 
-    // Generate OTP
+
     const code = await OtpService.generateOTP(req.user.id, type);
 
-    // In production, this would trigger an email/SMS. 
-    // For Dev, we return it or just console log (handled in service).
-    // We return a success message telling user to check their email/console.
+
+
+
     res.json({ message: 'OTP generated. Check your email (or server console in dev).' });
   } catch (error) {
     console.error('Generate OTP error:', error);
@@ -146,10 +146,10 @@ router.post('/generate-otp', authMiddleware, async (req, res) => {
   }
 });
 
-// Get user by ID
+
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
-    // Users can only view their own profile or if they are admin
+
     if (String(req.user.id) !== String(req.params.id) && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Unauthorized' });
     }
@@ -170,26 +170,44 @@ router.get('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// Update user
+
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
-    // Users can only update their own profile, unless admin
-    // Normalize comparison: req.params.id is a string
+
+
     if (String(req.user.id) !== String(req.params.id) && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    const { name, phone, avatar } = req.body;
+    const { name, phone, avatar, email, student_class, grade, school, age, bio, department, subjects_taught, employee_id } = req.body;
+
+    // If email is changing, check uniqueness
+    if (email) {
+      const emailCheck = await pool.query('SELECT id FROM users WHERE email = $1 AND id != $2', [email, req.params.id]);
+      if (emailCheck.rows.length > 0) {
+        return res.status(400).json({ error: 'Email already currently in use by another user' });
+      }
+    }
+
+    const finalClass = student_class || grade;
 
     const result = await pool.query(`
       UPDATE users 
       SET name = COALESCE($1, name), 
           phone = COALESCE($2, phone), 
           avatar = COALESCE($3, avatar),
+          email = COALESCE($4, email),
+          student_class = COALESCE($5, student_class),
+          school = COALESCE($6, school),
+          age = COALESCE($7, age),
+          bio = COALESCE($8, bio),
+          department = COALESCE($9, department),
+          subjects_taught = COALESCE($10, subjects_taught),
+          employee_id = COALESCE($11, employee_id),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $4
-      RETURNING id, name, email, role, phone, avatar, is_approved, is_onboarded
-    `, [name, phone, avatar, req.params.id]);
+      WHERE id = $12
+      RETURNING id, name, email, role, phone, avatar, is_approved, is_onboarded, student_class, school, age, bio, department, subjects_taught, employee_id
+    `, [name, phone, avatar, email, finalClass, school, age, bio, department, subjects_taught, employee_id, req.params.id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -202,25 +220,25 @@ router.put('/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// Update user subscription (admin only)
+
 router.put('/:id/subscription', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const { plan, status, expiresAt } = req.body;
     const userId = req.params.id;
 
-    // 1. Check if user exists
+
     const userCheck = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
     if (userCheck.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // 2. Check for existing subscription or create new one
-    // We'll update the latest subscription or insert if none exists
+
+
     const subCheck = await pool.query('SELECT id FROM subscriptions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1', [userId]);
 
     let result;
     if (subCheck.rows.length > 0) {
-      // Update existing
+
       const subId = subCheck.rows[0].id;
       result = await pool.query(`
          UPDATE subscriptions 
@@ -232,8 +250,8 @@ router.put('/:id/subscription', authMiddleware, requireRole('admin'), async (req
          RETURNING *
        `, [plan, status, expiresAt, subId]);
     } else {
-      // Create new (if admin wants to manually add one)
-      // Default amounts based on plan if creating new
+
+
       const amount = plan === 'family' ? 1300 : 300;
       result = await pool.query(`
          INSERT INTO subscriptions (user_id, plan, status, expires_at, amount, starts_at)
@@ -249,7 +267,7 @@ router.put('/:id/subscription', authMiddleware, requireRole('admin'), async (req
   }
 });
 
-// Approve user (admin only)
+
 router.post('/:id/approve', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const result = await pool.query(`
@@ -261,7 +279,7 @@ router.post('/:id/approve', authMiddleware, requireRole('admin'), async (req, re
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Create notification for user
+
     await pool.query(`
       INSERT INTO notifications (user_id, title, message, type)
       VALUES ($1, 'Account Approved', 'Your account has been approved. Welcome to EduLearn!', 'success')
@@ -274,7 +292,7 @@ router.post('/:id/approve', authMiddleware, requireRole('admin'), async (req, re
   }
 });
 
-// Reject user (admin only)
+
 router.post('/:id/reject', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const result = await pool.query(`
@@ -293,7 +311,7 @@ router.post('/:id/reject', authMiddleware, requireRole('admin'), async (req, res
   }
 });
 
-// Delete user (admin only)
+
 router.delete('/:id', authMiddleware, requireRole('admin'), async (req, res) => {
   const client = await pool.connect();
   try {
@@ -301,19 +319,19 @@ router.delete('/:id', authMiddleware, requireRole('admin'), async (req, res) => 
 
     const userId = req.params.id;
 
-    // 1. Unlink from Subjects (Set teacher_id to NULL)
+
     await client.query('UPDATE subjects SET teacher_id = NULL WHERE teacher_id = $1', [userId]);
 
-    // 2. Remove from teacher_subjects (Many-to-Many)
+
     await client.query('DELETE FROM teacher_subjects WHERE teacher_id = $1', [userId]);
 
-    // 3. Delete Assignments (cascades to student_assignments)
+
     await client.query('DELETE FROM assignments WHERE teacher_id = $1', [userId]);
 
-    // 4. Delete Live Classes
+
     await client.query('DELETE FROM live_classes WHERE teacher_id = $1', [userId]);
 
-    // 6. Delete the User
+
     const result = await client.query('DELETE FROM users WHERE id = $1 RETURNING id', [userId]);
 
     if (result.rows.length === 0) {
@@ -332,40 +350,40 @@ router.delete('/:id', authMiddleware, requireRole('admin'), async (req, res) => 
   }
 });
 
-// Add child to parent
+
 router.post('/:id/children', authMiddleware, async (req, res) => {
   try {
     if (req.user.role !== 'parent' && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Only parents can add children' });
     }
 
-    // Parents can only add children to their own account; admins can manage any parent
+
     if (req.user.role === 'parent' && String(req.user.id) !== String(req.params.id)) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
     const { name, grade, school, age, studentClass, phone } = req.body;
 
-    // --- ENFORCE PLAN LIMITS ---
-    // 1. Get current plan
+
+
     const subResult = await pool.query(`
       SELECT plan FROM subscriptions 
       WHERE user_id = $1 AND (status = 'active' OR status = 'trial') 
       ORDER BY created_at DESC LIMIT 1
     `, [req.user.id]);
 
-    // Default to 'single' if no active subscription found (or block entirely? Assuming free tier = single for now)
+
     const plan = subResult.rows[0]?.plan?.toLowerCase() || 'single';
 
-    // 2. Count existing children
+
     const countResult = await pool.query(`
       SELECT COUNT(*) FROM parent_children WHERE parent_id = $1
     `, [req.user.id]);
     const currentCount = parseInt(countResult.rows[0].count);
 
-    // 3. Define limits
-    // 'family' -> 4 children
-    // 'single' (or anything else) -> 1 child
+
+
+
     const limit = (plan.includes('family') || plan === 'family') ? 4 : 1;
 
     if (currentCount >= limit) {
@@ -373,11 +391,11 @@ router.post('/:id/children', authMiddleware, async (req, res) => {
         error: `Plan limit reached. Your '${plan}' plan allows max ${limit} child${limit > 1 ? 'ren' : ''}. Upgrade to 'Family' to add more.`
       });
     }
-    // ---------------------------
+
 
     let childId;
 
-    // 1. Try to find existing student by phone if provided
+
     if (phone) {
       const existingStudent = await pool.query(
         'SELECT * FROM users WHERE phone = $1 AND role = $2',
@@ -387,7 +405,7 @@ router.post('/:id/children', authMiddleware, async (req, res) => {
       if (existingStudent.rows.length > 0) {
         childId = existingStudent.rows[0].id;
 
-        // Verify if already linked
+
         const existingLink = await pool.query(
           'SELECT * FROM parent_children WHERE parent_id = $1 AND child_id = $2',
           [req.user.id, childId]
@@ -399,14 +417,14 @@ router.post('/:id/children', authMiddleware, async (req, res) => {
       }
     }
 
-    // 2. If no existing student found, create new one
+
     if (!childId) {
-      // Create child as student
+
       const passwordHash = await bcrypt.hash('child123', 10);
-      // Use provided email or generate a placeholder
+
       const childEmail = req.body.email || `child_${Date.now()}@edulearn.com`;
 
-      // Check if email already exists
+
       if (req.body.email) {
         const emailCheck = await pool.query(
           'SELECT id FROM users WHERE email = $1',
@@ -421,22 +439,22 @@ router.post('/:id/children', authMiddleware, async (req, res) => {
           INSERT INTO users (name, email, password_hash, role, is_approved, is_onboarded, school, age, student_class, phone)
           VALUES ($1, $2, $3, 'student', true, false, $4, $5, $6, $7)
           RETURNING id, name, email, role
-        `, [name, childEmail, passwordHash, school, age, studentClass || grade, phone]); // Map grade to studentClass if provided
+        `, [name, childEmail, passwordHash, school, age, studentClass || grade, phone]);
 
       childId = childResult.rows[0].id;
     }
 
-    // 3. Link to parent
+
     await pool.query(`
       INSERT INTO parent_children (parent_id, child_id)
       VALUES ($1, $2)
     `, [req.user.id, childId]);
 
-    // 3.5. Link to Subjects (Enrollment)
+
     const { subjects } = req.body;
     if (subjects && Array.isArray(subjects) && subjects.length > 0) {
       for (const subjectId of subjects) {
-        // Only insert valid UUIDs (basic check)
+
         if (subjectId.length > 10) {
           await pool.query(`
             INSERT INTO student_subjects (student_id, subject_id)
@@ -447,14 +465,14 @@ router.post('/:id/children', authMiddleware, async (req, res) => {
       }
     }
 
-    // 4. Initialize XP if new (or check if exists)
+
     await pool.query(`
       INSERT INTO user_xp (user_id, total_xp, level) 
       VALUES ($1, 0, 1)
       ON CONFLICT (user_id) DO NOTHING
     `, [childId]);
 
-    // Return the child details
+
     const childDetails = await pool.query('SELECT id, name, email, role, school, age, student_class FROM users WHERE id = $1', [childId]);
     res.status(201).json(childDetails.rows[0]);
   } catch (error) {
@@ -463,10 +481,10 @@ router.post('/:id/children', authMiddleware, async (req, res) => {
   }
 });
 
-// Get parent's children
+
 router.get('/:id/children', authMiddleware, async (req, res) => {
   try {
-    // Parents can only view their own children; admins can view any parent's children
+
     if (String(req.user.id) !== String(req.params.id) && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Unauthorized' });
     }
@@ -487,9 +505,9 @@ router.get('/:id/children', authMiddleware, async (req, res) => {
   }
 });
 
-// --- Admin Management Routes ---
 
-// Get all admins with their super-admin status
+
+
 router.get('/admins/list', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const result = await pool.query(`
@@ -506,12 +524,12 @@ router.get('/admins/list', authMiddleware, requireRole('admin'), async (req, res
   }
 });
 
-// Create a new Admin
+
 router.post('/admins/invite', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
 
-    // Check if user exists
+
     const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'User already exists' });
@@ -532,13 +550,13 @@ router.post('/admins/invite', authMiddleware, requireRole('admin'), async (req, 
   }
 });
 
-// Promote to Super Admin
+
 router.post('/:id/promote', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
     const { otp_code } = req.body;
     const OtpService = require('../services/OtpService');
 
-    // 1. Check if ANY super admin exists (Bootstrapping check)
+
     const superAdminCheck = await pool.query("SELECT 1 FROM user_roles WHERE role = 'super_admin' LIMIT 1");
     const isBootstrap = superAdminCheck.rows.length === 0;
 
@@ -559,7 +577,7 @@ router.post('/:id/promote', authMiddleware, requireRole('admin'), async (req, re
       ON CONFLICT DO NOTHING
     `, [req.params.id]);
 
-    // Notify
+
     await pool.query(`
       INSERT INTO notifications (user_id, title, message, type)
       VALUES ($1, 'Role Updated', 'You have been promoted to Super Admin.', 'system')
@@ -572,7 +590,7 @@ router.post('/:id/promote', authMiddleware, requireRole('admin'), async (req, re
   }
 });
 
-// Demote from Super Admin
+
 router.post('/:id/demote', authMiddleware, requireSuperAdmin, async (req, res) => {
   try {
     await pool.query(`

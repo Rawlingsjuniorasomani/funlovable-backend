@@ -4,15 +4,15 @@ const { authMiddleware, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Get admin analytics
+
 router.get('/admin', authMiddleware, requireRole('admin'), async (req, res) => {
   try {
-    // User counts by role
+
     const userCountsResult = await pool.query(`
       SELECT role, COUNT(*) as count FROM users GROUP BY role
     `);
 
-    // New registrations this month
+
     const newUsersResult = await pool.query(`
       SELECT DATE(created_at) as date, COUNT(*) as count 
       FROM users 
@@ -20,7 +20,7 @@ router.get('/admin', authMiddleware, requireRole('admin'), async (req, res) => {
       GROUP BY DATE(created_at) ORDER BY date
     `);
 
-    // Payment stats
+
     const paymentStatsResult = await pool.query(`
       SELECT 
         COUNT(*) as total_payments,
@@ -29,7 +29,7 @@ router.get('/admin', authMiddleware, requireRole('admin'), async (req, res) => {
       FROM payments
     `);
 
-    // Daily revenue (last 30 days)
+
     const dailyRevenueResult = await pool.query(`
       SELECT DATE(created_at) as date, SUM(amount) as revenue
       FROM payments
@@ -37,14 +37,14 @@ router.get('/admin', authMiddleware, requireRole('admin'), async (req, res) => {
       GROUP BY DATE(created_at) ORDER BY date
     `);
 
-    // Active subscriptions
+
     const subscriptionsResult = await pool.query(`
       SELECT plan, COUNT(*) as count 
       FROM subscriptions WHERE status = 'active'
       GROUP BY plan
     `);
 
-    // Quiz attempts stats
+
     const quizStatsResult = await pool.query(`
       SELECT 
         COUNT(*) as total_attempts,
@@ -53,7 +53,7 @@ router.get('/admin', authMiddleware, requireRole('admin'), async (req, res) => {
       FROM quiz_attempts
     `);
 
-    // Recent activity (Users and Payments mixed)
+
     const recentActivityResult = await pool.query(`
       SELECT 'user' as type, name as title, created_at as date, email as subtitle
       FROM users
@@ -66,15 +66,15 @@ router.get('/admin', authMiddleware, requireRole('admin'), async (req, res) => {
       ORDER BY created_at DESC LIMIT 5
     `);
 
-    // Merge and sort
+
     const recentActivity = [...recentActivityResult.rows, ...recentPaymentsResult.rows]
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, 5);
 
-    // System alerts
+
     const alerts = [];
 
-    // Check for pending teachers
+
     const pendingTeachersResult = await pool.query(`
       SELECT COUNT(*) as count FROM users WHERE role = 'teacher' AND is_approved = false
     `);
@@ -88,7 +88,7 @@ router.get('/admin', authMiddleware, requireRole('admin'), async (req, res) => {
       });
     }
 
-    // Check for recent failed payments
+
     const failedPaymentsResult = await pool.query(`
       SELECT COUNT(*) as count FROM payments 
       WHERE status = 'failed' AND created_at >= CURRENT_DATE - INTERVAL '24 hours'
@@ -119,19 +119,19 @@ router.get('/admin', authMiddleware, requireRole('admin'), async (req, res) => {
   }
 });
 
-// Get teacher analytics
+
 router.get('/teacher', authMiddleware, requireRole('teacher'), async (req, res) => {
   try {
     const teacherId = req.user.id;
 
-    // Subjects taught
+
     const subjectsResult = await pool.query(`
       SELECT COUNT(DISTINCT ts.subject_id) as count
       FROM teacher_subjects ts
       WHERE ts.teacher_id = $1
     `, [teacherId]);
 
-    // Total students in classes
+
     const studentsResult = await pool.query(`
       SELECT COUNT(DISTINCT up.user_id) as count
       FROM user_progress up
@@ -142,7 +142,7 @@ router.get('/teacher', authMiddleware, requireRole('teacher'), async (req, res) 
       WHERE ts.teacher_id = $1
     `, [teacherId]);
 
-    // Quiz performance in teacher's subjects
+
     const quizPerformanceResult = await pool.query(`
       SELECT 
         AVG(qa.percentage) as average_score,
@@ -155,10 +155,80 @@ router.get('/teacher', authMiddleware, requireRole('teacher'), async (req, res) 
       WHERE ts.teacher_id = $1
     `, [teacherId]);
 
+    // 4. Weekly Activity Chart (Last 7 Days)
+    const weeklyQueryResult = await pool.query(`
+      SELECT 
+        to_char(d.day, 'Dy') as day,
+        COUNT(DISTINCT up.user_id) as students,
+        active_counts.count as active
+      FROM (
+        SELECT generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, '1 day')::date as day
+      ) d
+      LEFT JOIN user_progress up ON DATE(up.completed_at) = d.day 
+      LEFT JOIN (
+        SELECT DATE(created_at) as day, COUNT(*) as count 
+        FROM quiz_attempts GROUP BY DATE(created_at)
+      ) active_counts ON active_counts.day = d.day
+      GROUP BY d.day, active_counts.count
+      ORDER BY d.day
+    `);
+
+    // 5. Quiz Performance Details (Chart)
+    const quizStatsResult = await pool.query(`
+      SELECT 
+        q.title as name,
+        COALESCE(AVG(qa.percentage), 0) as avg,
+        COALESCE(q.pass_mark, 60) as passing
+      FROM quizzes q
+      JOIN modules m ON q.module_id = m.id
+      JOIN subjects s ON m.subject_id = s.id
+      JOIN teacher_subjects ts ON ts.subject_id = s.id
+      LEFT JOIN quiz_attempts qa ON q.id = qa.quiz_id
+      WHERE ts.teacher_id = $1
+      GROUP BY q.id, q.title, q.pass_mark, q.created_at
+      ORDER BY q.created_at DESC
+      LIMIT 5
+    `, [teacherId]);
+
+    // 6. At Risk Students (Avg < 50%)
+    const atRiskResult = await pool.query(`
+      SELECT DISTINCT ON (u.id)
+        u.id, 
+        u.name, 
+        u.student_class as grade,
+        'High' as risk,
+        AVG(qa.percentage) as score
+      FROM users u
+      JOIN quiz_attempts qa ON u.id = qa.user_id
+      JOIN quizzes q ON qa.quiz_id = q.id
+      JOIN modules m ON q.module_id = m.id
+      JOIN subjects s ON m.subject_id = s.id
+      JOIN teacher_subjects ts ON ts.subject_id = s.id
+      WHERE ts.teacher_id = $1
+      GROUP BY u.id, u.name, u.student_class
+      HAVING AVG(qa.percentage) < 50
+      ORDER BY u.id, score ASC
+      LIMIT 5
+    `, [teacherId]);
+
     res.json({
       subjectsCount: parseInt(subjectsResult.rows[0].count),
       studentsCount: parseInt(studentsResult.rows[0].count),
-      quizPerformance: quizPerformanceResult.rows[0]
+      quizPerformance: quizPerformanceResult.rows[0],
+      weeklyActivity: weeklyQueryResult.rows.map(r => ({
+        name: r.day,
+        students: parseInt(r.students),
+        active: parseInt(r.active)
+      })),
+      quizPerformanceChart: quizStatsResult.rows.map(r => ({
+        name: r.name,
+        avg: Math.round(parseFloat(r.avg)),
+        passing: Math.round(parseFloat(r.passing))
+      })),
+      atRiskStudents: atRiskResult.rows.map(r => ({
+        ...r,
+        score: Math.round(parseFloat(r.score))
+      }))
     });
   } catch (error) {
     console.error('Teacher analytics error:', error);
@@ -166,12 +236,12 @@ router.get('/teacher', authMiddleware, requireRole('teacher'), async (req, res) 
   }
 });
 
-// Get student analytics
+
 router.get('/student', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Progress stats
+
     const progressResult = await pool.query(`
       SELECT 
         COUNT(*) as completed_lessons,
@@ -180,7 +250,7 @@ router.get('/student', authMiddleware, async (req, res) => {
       WHERE user_id = $1 AND is_completed = true
     `, [userId]);
 
-    // Quiz stats
+
     const quizResult = await pool.query(`
       SELECT 
         COUNT(*) as total_attempts,
@@ -189,18 +259,18 @@ router.get('/student', authMiddleware, async (req, res) => {
       FROM quiz_attempts WHERE user_id = $1
     `, [userId]);
 
-    // XP and level
+
     const xpResult = await pool.query(
       'SELECT total_xp, level FROM user_xp WHERE user_id = $1',
       [userId]
     );
 
-    // Achievements
+
     const achievementsResult = await pool.query(`
       SELECT COUNT(*) as count FROM user_achievements WHERE user_id = $1
     `, [userId]);
 
-    // Recent activity
+
     const recentActivityResult = await pool.query(`
       SELECT 'lesson' as type, l.title as name, up.completed_at as date
       FROM user_progress up
@@ -214,7 +284,7 @@ router.get('/student', authMiddleware, async (req, res) => {
       ORDER BY date DESC LIMIT 10
     `, [userId]);
 
-    // Last played lesson
+
     const lastPlayedResult = await pool.query(`
       SELECT 
         l.id as lesson_id,
@@ -241,17 +311,17 @@ router.get('/student', authMiddleware, async (req, res) => {
   }
 });
 
-// Get parent analytics (for children)
+
 router.get('/parent', authMiddleware, async (req, res) => {
   try {
     const parentId = req.user.id;
 
-    // 1. Get children
+
     const childrenResult = await pool.query(`
       SELECT u.id, u.name, u.avatar, u.student_class as grade
       FROM users u
-      INNER JOIN parent_children pc ON u.id = pc.child_id
-      WHERE pc.parent_id = $1
+      INNER JOIN parent_children pc ON u.id::text = pc.child_id::text
+      WHERE pc.parent_id::text = $1::text
     `, [parentId]);
     const children = childrenResult.rows;
     const childIds = children.map(c => c.id);
@@ -272,19 +342,19 @@ router.get('/parent', authMiddleware, async (req, res) => {
       });
     }
 
-    // 2. Overview Stats
-    // Total Invested
+
+
     const investmentResult = await pool.query(`
       SELECT COALESCE(SUM(amount), 0) as total
       FROM payments
-      WHERE user_id = $1 AND status = 'success' OR status = 'completed'
+      WHERE (user_id::text = $1::text) AND (status = 'success' OR status = 'completed')
     `, [parentId]);
     const totalInvested = parseFloat(investmentResult.rows[0].total);
 
-    // 3. Children Detailed Stats
+
     const childrenAnalytics = await Promise.all(
       children.map(async (child) => {
-        // Progress & Time
+
         const progressResult = await pool.query(`
           SELECT 
             COUNT(*) as completed_lessons,
@@ -293,13 +363,13 @@ router.get('/parent', authMiddleware, async (req, res) => {
           WHERE user_id = $1 AND is_completed = true
         `, [child.id]);
 
-        // Course Progress (Completion rate)
-        const totalLessons = 50; // hardcoded denominator for now
+
+        const totalLessons = 50;
         const completed = parseInt(progressResult.rows[0].completed_lessons);
         const totalTime = parseInt(progressResult.rows[0].total_time);
         const progress = Math.min(Math.round((completed / totalLessons) * 100), 100);
 
-        // Quiz Stats (Avg Score)
+
         const quizResult = await pool.query(`
           SELECT 
             COALESCE(AVG(score), 0) as average_score, 
@@ -312,7 +382,7 @@ router.get('/parent', authMiddleware, async (req, res) => {
           attempts: parseInt(quizResult.rows[0].attempts)
         };
 
-        // XP
+
         const xpResult = await pool.query(
           'SELECT total_xp, level FROM user_xp WHERE user_id = $1',
           [child.id]
@@ -322,13 +392,13 @@ router.get('/parent', authMiddleware, async (req, res) => {
           level: xpResult.rows[0]?.level || 1
         };
 
-        // Streak Calculation (Consecutive days with activity in last 30 days)
+
         const activityDatesResult = await pool.query(`
           SELECT DISTINCT DATE(created_at) as date
           FROM (
             SELECT created_at FROM user_progress WHERE user_id = $1
             UNION ALL
-            SELECT created_at FROM quiz_attempts WHERE user_id = $1
+            SELECT completed_at as created_at FROM quiz_attempts WHERE user_id = $1
           ) activities
           WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
           ORDER BY date DESC
@@ -339,7 +409,7 @@ router.get('/parent', authMiddleware, async (req, res) => {
         const today = new Date().toDateString();
         const yesterday = new Date(Date.now() - 86400000).toDateString();
 
-        // If active today or yesterday, start counting
+
         if (dates.length > 0 && (dates[0] === today || dates[0] === yesterday)) {
           streak = 1;
           let currentDate = new Date(dates[0]);
@@ -360,9 +430,9 @@ router.get('/parent', authMiddleware, async (req, res) => {
           ...child,
           progress,
           quizStats,
-          avgScore: quizStats.average_score, // Support ParentAnalytics which expects flat avgScore
+          avgScore: quizStats.average_score,
           xp,
-          totalXP: xp.total_xp, // Support ParentAnalytics which expects flat totalXP
+          totalXP: xp.total_xp,
           completedLessons: completed,
           totalTime,
           streak
@@ -370,9 +440,9 @@ router.get('/parent', authMiddleware, async (req, res) => {
       })
     );
 
-    // 4. Aggregates for Charts
 
-    // Weekly Learning Time (Last 7 days)
+
+
     const weeklyActivityResult = await pool.query(`
       SELECT 
         to_char(d.day, 'Dy') as day,
@@ -388,17 +458,17 @@ router.get('/parent', authMiddleware, async (req, res) => {
       ORDER BY d.day
     `, [childIds]);
 
-    // Reshape for frontend: [{ day: 'Mon', kwame: 10, ama: 20 }, ...]
+
     const weeklyMap = {};
     weeklyActivityResult.rows.forEach(row => {
       if (!weeklyMap[row.day]) weeklyMap[row.day] = { day: row.day };
-      // Sanitize name for key? Or just use name assuming unique for display
-      const key = row.child_name.toLowerCase().split(' ')[0]; // simple key
+
+      const key = row.child_name.toLowerCase().split(' ')[0];
       weeklyMap[row.day][key] = parseInt(row.minutes);
     });
     const weeklyActivity = Object.values(weeklyMap);
 
-    // Monthly Payments (Last 6 months)
+
     const monthlyPaymentResult = await pool.query(`
       SELECT 
         to_char(d.month, 'Mon') as month_label,
@@ -406,14 +476,14 @@ router.get('/parent', authMiddleware, async (req, res) => {
       FROM (
         SELECT generate_series(DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '5 months', DATE_TRUNC('month', CURRENT_DATE), '1 month')::date as month
       ) d
-      LEFT JOIN payments p ON DATE_TRUNC('month', p.created_at) = d.month AND p.user_id = $1 AND (p.status = 'success' OR p.status = 'completed')
+      LEFT JOIN payments p ON DATE_TRUNC('month', p.created_at) = d.month AND p.user_id::text = $1::text AND (p.status = 'success' OR p.status = 'completed')
       GROUP BY d.month
       ORDER BY d.month
     `, [parentId]);
     const monthlyPayments = monthlyPaymentResult.rows;
 
-    // Subject Performance Breakdown
-    // Average quiz score per subject per child
+
+
     const subjectStatsResult = await pool.query(`
       SELECT 
         s.name as subject,
@@ -436,7 +506,7 @@ router.get('/parent', authMiddleware, async (req, res) => {
     });
     const subjectBreakdown = Object.values(subjectMap);
 
-    // Recent Activity (Already implemented effectively, reusing logic)
+
     const activityResult = await pool.query(`
       SELECT 'lesson' as type, l.title as name, up.completed_at as date, u.name as student_name
       FROM user_progress up
@@ -452,7 +522,7 @@ router.get('/parent', authMiddleware, async (req, res) => {
       ORDER BY date DESC LIMIT 5
     `, [childIds]);
 
-    // Calculate overall averages
+
     const totalWeeklyTime = weeklyActivityResult.rows.reduce((acc, curr) => acc + parseInt(curr.minutes), 0);
     const avgChildScore = childrenAnalytics.length > 0
       ? Math.round(childrenAnalytics.reduce((acc, c) => acc + c.quizStats.average_score, 0) / childrenAnalytics.length)

@@ -13,9 +13,9 @@ class HttpError extends Error {
 
 class ParentService {
     static async addChild(parentId, childData) {
-        // childData: { name, age, grade, phone, subjects (array of IDs) }
 
-        // Enforce child limits based on current subscription/plan
+
+
         const countRes = await pool.query(
             'SELECT COUNT(*)::int as count FROM parent_children WHERE parent_id = $1',
             [parentId]
@@ -63,7 +63,7 @@ class ParentService {
             );
         }
 
-        // 1. Try to find existing student by phone if provided
+
         if (childData.phone) {
             const existingStudent = await pool.query(
                 `SELECT * FROM users WHERE phone = $1 AND role = 'student'`,
@@ -73,7 +73,7 @@ class ParentService {
             if (existingStudent.rows.length > 0) {
                 const studentId = existingStudent.rows[0].id;
 
-                // Check if already linked
+
                 const existingLink = await pool.query(
                     `SELECT * FROM parent_children WHERE parent_id = $1 AND child_id = $2`,
                     [parentId, studentId]
@@ -88,17 +88,17 @@ class ParentService {
 
                 return {
                     child: existingStudent.rows[0],
-                    studentUser: { email: existingStudent.rows[0].email } // No password return for existing
+                    studentUser: { email: existingStudent.rows[0].email }
                 };
             }
         }
 
-        // 2. Generate Creds
-        const studentEmail = `${childData.name.replace(/\s+/g, '').toLowerCase()}${Math.floor(Math.random() * 1000)}@student.com`;
+
+        const studentEmail = `${childData.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}${Math.floor(Math.random() * 10000)}@funlovable.com`;
         const defaultPassword = 'password123';
         const hash = await bcrypt.hash(defaultPassword, 10);
 
-        // 3. Create User (Student)
+
         const studentUser = await UserModel.create({
             name: childData.name,
             email: studentEmail,
@@ -111,30 +111,40 @@ class ParentService {
             studentClass: childData.grade
         });
 
-        // 4. Link to Parent
+
         await pool.query(
             `INSERT INTO parent_children (parent_id, child_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
             [parentId, studentUser.id]
         );
 
-        // 5. Initialize XP
+
         await pool.query(
             `INSERT INTO user_xp (user_id, total_xp, level) VALUES ($1, 0, 1) ON CONFLICT DO NOTHING`,
             [studentUser.id]
         );
 
-        // 6. Enroll in Subjects (optional, if childData.subjects provided)
+
         if (childData.subjects && Array.isArray(childData.subjects) && childData.subjects.length > 0) {
-            // Assuming we track student progress per module/subject dynamically, 
-            // but if we need explicit enrollment table, add here.
-            // For now, E-Learning usually implies open access or implicit validation.
-            // We won't block access.
+            for (const subjectId of childData.subjects) {
+                await pool.query(
+                    `INSERT INTO student_subjects (student_id, subject_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                    [studentUser.id, subjectId]
+                );
+            }
         }
 
         return {
             child: studentUser,
             studentUser: { email: studentEmail, password: defaultPassword }
         };
+    }
+
+    static async verifyParentAccess(parentId, childId) {
+        const result = await pool.query(
+            `SELECT * FROM parent_children WHERE parent_id = $1 AND child_id = $2`,
+            [parentId, childId]
+        );
+        return result.rows.length > 0;
     }
 
     static async getChildren(userId) {
@@ -151,7 +161,7 @@ class ParentService {
     }
 
     static async getChildProgress(childId) {
-        // 1. Get Child Details & Stats
+
         const childResult = await pool.query(`
             SELECT u.id, u.name, u.avatar, COALESCE(ux.total_xp, 0) as total_xp, COALESCE(ux.level, 1) as level
             FROM users u
@@ -162,7 +172,7 @@ class ParentService {
         if (childResult.rows.length === 0) return null;
         const child = childResult.rows[0];
 
-        // 2. Get Enrolled Subjects with Stats
+
         const subjectsResult = await pool.query(`
             SELECT s.name as subject, 
                    COUNT(distinct qa.id) as quizzes_taken,
@@ -175,7 +185,7 @@ class ParentService {
             GROUP BY s.name
         `, [childId]);
 
-        // 3. Get Recent Activity
+
         const activityResult = await pool.query(`
             SELECT qa.id, 'quiz' as type, q.title, s.name as subject, qa.score, qa.created_at as date
             FROM quiz_attempts qa

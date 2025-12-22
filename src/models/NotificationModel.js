@@ -2,7 +2,7 @@ const pool = require('../db/pool');
 
 class NotificationModel {
     static async create({ user_id, type, title, description, message, related_id }) {
-        // Handle both description and message (alias)
+        
         const msg = message || description;
         const result = await pool.query(`
             INSERT INTO notifications (user_id, type, title, message, related_id)
@@ -29,7 +29,7 @@ class NotificationModel {
     }
 
     static async getUnread(user_id) {
-        // If user_id provided, filter by it. Else, all unread? Assuming per-user.
+        
         let query = 'SELECT * FROM notifications WHERE is_read = false';
         const params = [];
         if (user_id) {

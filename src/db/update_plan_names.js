@@ -6,14 +6,14 @@ async function updatePlanNames() {
     try {
         console.log('📝 Updating plan names...');
 
-        // Show current plans
+        
         const current = await pool.query('SELECT id, plan_name, price FROM plans ORDER BY price');
         console.log('\nCurrent plans:');
         current.rows.forEach(p => {
             console.log(`  - "${p.plan_name}" - GHS ${p.price}`);
         });
 
-        // Update plan names
+        
         await pool.query(`
             UPDATE plans 
             SET plan_name = 'Single Child' 
@@ -26,7 +26,7 @@ async function updatePlanNames() {
             WHERE price = 1300
         `);
 
-        // Show updated plans
+        
         const updated = await pool.query('SELECT id, plan_name, price FROM plans ORDER BY price');
         console.log('\nUpdated plans:');
         updated.rows.forEach(p => {

@@ -1,4 +1,5 @@
 const LessonService = require('../services/LessonService');
+const ProgressModel = require('../models/ProgressModel'); // Import ProgressModel
 
 class LessonController {
     static async getAll(req, res) {
@@ -18,7 +19,14 @@ class LessonController {
     static async getByModule(req, res) {
         try {
             const { moduleId } = req.params;
-            const lessons = await LessonService.getLessonsByModule(moduleId);
+            let lessons = await LessonService.getLessonsByModule(moduleId);
+
+            // Gating Logic for Students
+            if (req.user && req.user.role === 'student') {
+                const lessons = await LessonService.getLessonsWithProgress(req.user.id, moduleId);
+                return res.json(lessons);
+            }
+
             res.json(lessons);
         } catch (error) {
             console.error(error);

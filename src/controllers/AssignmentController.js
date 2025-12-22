@@ -6,16 +6,16 @@ class AssignmentController {
     static async create(req, res) {
         try {
             const { subject_id, title, description, instructions, due_date, max_score, total_points, resources, submission_type, status } = req.body;
-            // Handle mismatched field names
+
             const finalDescription = description || instructions;
             const finalMaxScore = max_score || total_points;
 
             const assignment = await AssignmentService.createAssignment({
-                teacher_id: req.user.id, // Authenticated teacher
+                teacher_id: req.user.id,
                 subject_id,
                 title,
                 description: finalDescription,
-                instructions: finalDescription, // Keep for compat if needed by service
+                instructions: finalDescription,
                 due_date,
                 max_score: finalMaxScore,
                 resources: JSON.stringify(resources || []),
@@ -24,7 +24,7 @@ class AssignmentController {
             });
 
 
-            // Notify students
+
             try {
                 await NotificationService.notifyClass({
                     subject_id,
@@ -48,8 +48,8 @@ class AssignmentController {
     static async update(req, res) {
         try {
             const { id } = req.params;
-            
-            // Check ownership: teachers can only update their own assignments
+
+
             if (req.user.role === 'teacher') {
                 const assignment = await AssignmentService.getAssignment(id);
                 if (String(assignment.teacher_id) !== String(req.user.id)) {
@@ -73,7 +73,7 @@ class AssignmentController {
 
     static async delete(req, res) {
         try {
-            // Check ownership: teachers can only delete their own assignments
+
             if (req.user.role === 'teacher') {
                 const assignment = await AssignmentService.getAssignment(req.params.id);
                 if (String(assignment.teacher_id) !== String(req.user.id)) {
@@ -102,7 +102,7 @@ class AssignmentController {
                 assignments = await AssignmentService.getAssignmentsByTeacher(req.user.id);
             }
 
-            // Filter in memory if status provided (or move to DB query)
+
             if (status) {
                 assignments = assignments.filter(a => a.status === status);
             }
@@ -126,7 +126,7 @@ class AssignmentController {
 
     static async submit(req, res) {
         try {
-            // Check if student
+
             if (req.user.role !== 'student') return res.status(403).json({ error: 'Only students can submit' });
 
             const { content, file_url, status } = req.body;
@@ -146,7 +146,7 @@ class AssignmentController {
 
     static async getSubmissions(req, res) {
         try {
-            // Teacher only
+
             const submissions = await AssignmentService.getSubmissions(req.params.id);
             res.json(submissions);
         } catch (error) {
@@ -170,13 +170,13 @@ class AssignmentController {
 
     static async gradeSubmission(req, res) {
         try {
-            // Teacher only
+
             const { score, feedback } = req.body;
             const graded = await AssignmentService.gradeSubmission(req.params.submissionId, { score, feedback });
 
-            // Notify student
+
             try {
-                // We need to fetch the submission to get the student_id
+
                 const submission = await pool.query('SELECT student_id, assignment_id FROM student_assignments WHERE id = $1', [req.params.submissionId]);
                 if (submission.rows.length > 0) {
                     await NotificationService.createNotification({
@@ -198,10 +198,10 @@ class AssignmentController {
         }
     }
 
-    // Question Management
+
     static async addQuestion(req, res) {
         try {
-            // Check ownership: teachers can only add questions to their own assignments
+
             if (req.user.role === 'teacher') {
                 const assignment = await AssignmentService.getAssignment(req.params.id);
                 if (String(assignment.teacher_id) !== String(req.user.id)) {
@@ -216,7 +216,7 @@ class AssignmentController {
             res.status(201).json(question);
         } catch (error) {
             console.error(error);
-            res.status(500).json({ error: 'Failed to add question' });
+            res.status(500).json({ error: `Failed to add question: ${error.message}` });
         }
     }
 
@@ -252,14 +252,14 @@ class AssignmentController {
 
     static async saveAnswer(req, res) {
         try {
-            // Check submission exists for this student
-            // This assumes the frontend calls submit (start) first OR we create on fly
-            // For now, assume submission ID is passed or derived
-            // Actually, we pass assignment_id, and look up student submission
 
-            // Simplified: Frontend passes submission_id if exists, or we lookup
-            // Let's pass assignment_id in Params to find/create submission?
-            // Actually `submit` endpoint creates/updates the submission record (status=inprogress/submitted)
+
+
+
+
+
+
+
 
             const { submission_id } = req.body;
             if (!submission_id) return res.status(400).json({ error: 'Submission ID required' });

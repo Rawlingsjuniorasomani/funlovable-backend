@@ -20,7 +20,7 @@ async function inspect() {
     `);
         console.log(ts.rows);
 
-        // Check if student_subjects exists
+        
         console.log("\n--- student_subjects Schema (if exists) ---");
         const ss = await client.query(`
         SELECT column_name, data_type 
@@ -29,7 +29,7 @@ async function inspect() {
     `);
         console.log(ss.rows);
 
-        // Check subjects table to see if it allows mapping
+        
         console.log("\n--- subjects Schema ---");
         const sub = await client.query(`
         SELECT column_name, data_type 

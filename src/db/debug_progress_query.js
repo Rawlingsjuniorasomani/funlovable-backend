@@ -7,7 +7,7 @@ async function debugProgress() {
         const childId = '771fe18f-5c27-4e3b-9c31-d1508eca4f0e';
         console.log(`Testing progress query for child: ${childId}`);
 
-        // Query 1: Subjects Stats
+        
         console.log('\n--- Subjects Stats Query ---');
         const subjectsRes = await client.query(`
         SELECT s.name as subject, 
@@ -22,7 +22,7 @@ async function debugProgress() {
     `, [childId]);
         console.log('Rows:', subjectsRes.rows);
 
-        // Query 2: Recent Activity
+        
         console.log('\n--- Recent Activity Query ---');
         const activityRes = await client.query(`
         SELECT qa.id, 'quiz' as type, q.title, s.name as subject, qa.score, qa.completed_at as date

@@ -10,11 +10,11 @@ async function createAdmin() {
         const password = 'admin123';
         const passwordHash = await bcrypt.hash(password, 10);
 
-        // Delete existing admin if exists
+        
         await pool.query('DELETE FROM user_roles WHERE user_id IN (SELECT id FROM users WHERE email = $1)', [email]);
         await pool.query('DELETE FROM users WHERE email = $1', [email]);
 
-        // Create new admin
+        
         const result = await pool.query(`
       INSERT INTO users (name, email, password_hash, role, is_approved, is_onboarded)
       VALUES ($1, $2, $3, $4, true, true)
@@ -23,7 +23,7 @@ async function createAdmin() {
 
         const adminId = result.rows[0].id;
 
-        // Add admin role
+        
         await pool.query(`
       INSERT INTO user_roles (user_id, role)
       VALUES ($1, 'admin')
@@ -34,7 +34,7 @@ async function createAdmin() {
         console.log('🔑 Password:', password);
         console.log('🆔 User ID:', adminId);
 
-        // Verify
+        
         const verify = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
         console.log('✓ Verified in database');
 

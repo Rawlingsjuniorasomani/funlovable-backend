@@ -10,13 +10,13 @@ router.post('/', authMiddleware, requireRole(['teacher', 'admin']), AssignmentCo
 router.put('/:id', authMiddleware, requireRole(['teacher', 'admin']), AssignmentController.update);
 router.delete('/:id', authMiddleware, requireRole(['teacher', 'admin']), AssignmentController.delete);
 
-// Questions
+
 router.post('/:id/questions', authMiddleware, requireRole(['teacher', 'admin']), AssignmentController.addQuestion);
 router.get('/:id/questions', authMiddleware, AssignmentController.getQuestions);
 router.put('/questions/:questionId', authMiddleware, requireRole(['teacher', 'admin']), AssignmentController.updateQuestion);
 router.delete('/questions/:questionId', authMiddleware, requireRole(['teacher', 'admin']), AssignmentController.deleteQuestion);
 
-// Answers & Submissions
+
 router.post('/answers', authMiddleware, requireRole(['student']), AssignmentController.saveAnswer);
 router.post('/:id/submit', authMiddleware, requireRole(['student']), AssignmentController.submit);
 router.get('/:id/my-submission', authMiddleware, requireRole(['student']), AssignmentController.getMySubmission);

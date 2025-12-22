@@ -8,7 +8,7 @@ async function addStudentFields() {
     try {
         await client.query('BEGIN');
 
-        // Add school column
+        
         await client.query(`
       DO $$
       BEGIN
@@ -19,7 +19,7 @@ async function addStudentFields() {
       $$;
     `);
 
-        // Add age column
+        
         await client.query(`
       DO $$
       BEGIN
@@ -30,7 +30,7 @@ async function addStudentFields() {
       $$;
     `);
 
-        // Add student_class column (using student_class to avoid keyword collision with 'class')
+        
         await client.query(`
       DO $$
       BEGIN
@@ -48,7 +48,7 @@ async function addStudentFields() {
         console.error('Error adding student fields:', error);
     } finally {
         client.release();
-        pool.end(); // Close the pool to let the script exit
+        pool.end(); 
     }
 }
 

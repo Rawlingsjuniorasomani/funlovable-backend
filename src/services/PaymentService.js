@@ -39,12 +39,10 @@ class PaymentService {
             throw new Error('Email already registered');
         }
 
-        // Validate planId is a UUID (basic check)
         if (!planId || typeof planId !== 'string') {
             throw new Error('Invalid plan ID provided');
         }
 
-        // Basic UUID format validation (8-4-4-4-12 hex characters)
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!uuidRegex.test(planId)) {
             console.error(`[PaymentService.initializeRegistration] Invalid plan ID format: "${planId}". Expected UUID format.`);
@@ -56,11 +54,15 @@ class PaymentService {
             throw new Error('Plan not found');
         }
 
-        const amount = Number(planRes.rows[0].price);
-        const planCode = planRes.rows[0].paystack_plan_code;
+        const planData = planRes.rows[0];
+        const amount = planData.price;
+        const planCode = planData.paystack_plan_code;
 
-        // Include the role in the callback so frontend can pick correct dashboard after return
-        const callbackUrl = `${process.env.FRONTEND_URL || 'http://localhost:8080'}/payment/verify?role=${encodeURIComponent(role)}`;
+        const clientUrl = process.env.CLIENT_URL;
+        if (!clientUrl) {
+            throw new Error('CLIENT_URL environment variable is not set');
+        }
+        const callbackUrl = `${clientUrl}/payment/verify?role=${encodeURIComponent(role)}`;
 
         const paystackPayload = {
             email,
@@ -97,17 +99,15 @@ class PaymentService {
                         timeout: PAYSTACK_TIMEOUT_MS,
                     }
                 );
-                break; // success
+                break;
             } catch (error) {
                 const statusCode = error?.response?.status;
-                // If client error (4xx) or other non-retryable, throw immediately
                 if (statusCode && statusCode >= 400 && statusCode < 500) {
                     const msg = error?.response?.data?.message || error?.response?.data || error.message || String(error);
                     console.error('Paystack Init Registration Error (non-retryable):', msg);
                     throw new Error(`Paystack initialization failed: ${msg}`);
                 }
 
-                // If we've exhausted retries, surface a descriptive error
                 if (attempt > PAYSTACK_MAX_RETRIES) {
                     let msg = error?.response?.data?.message || error?.response?.data?.data?.message || error?.message || String(error);
                     if (error && error.code === 'ECONNABORTED') {
@@ -121,7 +121,6 @@ class PaymentService {
                     throw new Error(`Paystack initialization failed: ${msg}`);
                 }
 
-                // Otherwise log and back off then retry
                 console.warn(`Paystack initialize attempt ${attempt} failed; will retry.`, {
                     status: statusCode,
                     message: error?.response?.data || error?.message || String(error)
@@ -158,11 +157,9 @@ class PaymentService {
 
             console.log(`[PaymentService.verifyPayment] Looking up pending registration for reference: ${reference}`);
 
-            // Quick debug: check if the record exists at all in DB
             const allPending = await pool.query('SELECT reference, email, role, status FROM pending_registrations ORDER BY created_at DESC LIMIT 5');
             console.log(`[PaymentService.verifyPayment] Recent pending registrations in DB:`, allPending.rows.map(r => ({ ref: r.reference, email: r.email, role: r.role, status: r.status })));
 
-            // 1. Verify with Paystack
             const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
                 headers: {
                     Authorization: `Bearer ${paystackSecretKey}`
@@ -172,13 +169,11 @@ class PaymentService {
             const data = response.data.data;
 
             if (data.status === 'success') {
-                // 2. Update Payment Record
                 const existingPayment = await PaymentModel.findByReference(reference);
                 if (existingPayment) {
                     await PaymentModel.updateStatus(reference, 'success');
                 }
 
-                // 3. If this is a registration flow, create the user(s) now
                 if (!existingPayment) {
                     const pending = await PendingRegistrationModel.findByReference(reference);
                     console.log(`[PaymentService.verifyPayment] Pending registration lookup:`, {
@@ -198,7 +193,6 @@ class PaymentService {
                         try {
                             await client.query('BEGIN');
 
-                            // Re-fetch with row lock to handle race conditions (e.g. webhook vs frontend redirect)
                             const lockedRes = await client.query('SELECT * FROM pending_registrations WHERE reference = $1 FOR UPDATE', [reference]);
                             const lockedPending = lockedRes.rows[0];
 
@@ -206,7 +200,6 @@ class PaymentService {
                                 await client.query('COMMIT');
                                 console.log(`[PaymentService.verifyPayment] Pending registration already processed (race condition handled).`);
 
-                                // Fix: Retrieve the already created user to return token/session
                                 const existingUserRes = await pool.query('SELECT * FROM users WHERE email = $1', [pending.email]);
                                 const existingUser = existingUserRes.rows[0];
 
@@ -218,11 +211,9 @@ class PaymentService {
                                 return { status: 'success', data: data };
                             }
 
-                            // Use the locked record for data consistency
                             let planId = lockedPending.plan_id || data.metadata?.plan_id || null;
                             let durationDays = 30;
 
-                            // Safeguard: Ensure planId is a valid UUID before querying
                             const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
                             if (planId && !uuidRegex.test(planId)) {
                                 console.warn(`[PaymentService.verifyPayment] Warning: Invalid plan ID format "${planId}". Ignoring plan lookup.`);
@@ -237,7 +228,6 @@ class PaymentService {
                                     }
                                 } catch (dbErr) {
                                     console.error(`[PaymentService.verifyPayment] Plan lookup failed for id ${planId}:`, dbErr.message);
-                                    // Fallback to default duration
                                 }
                             }
 
@@ -252,7 +242,6 @@ class PaymentService {
                             });
 
                             const role = lockedPending.role || 'parent';
-                            // Hard security: payment registration flow must never create admin users
                             if (role !== 'parent' && role !== 'student') {
                                 throw new Error('Invalid role for registration');
                             }
@@ -263,7 +252,6 @@ class PaymentService {
 
                             const passwordHash = await bcrypt.hash(password, 10);
 
-                            // Check if parent email already exists (in case of race condition)
                             const checkParent = await client.query('SELECT id FROM users WHERE email = $1', [lockedPending.email]);
                             if (checkParent.rows.length > 0) {
                                 throw new Error('Email already registered');
@@ -316,9 +304,9 @@ class PaymentService {
                                 if (child && child.name) {
                                     const childPassword = child.password || 'password123';
                                     const childHash = await bcrypt.hash(childPassword, 10);
-                                    const childEmail = child.email || `child_${Date.now()}@edulearn.com`;
+                                    const emailPrefix = child.name ? child.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() : `child_${Date.now()}`;
+                                    const childEmail = child.email || `${emailPrefix}${Math.floor(Math.random() * 10000)}@funlovable.com`;
 
-                                    // Check if child email already exists
                                     const checkChild = await client.query('SELECT id FROM users WHERE email = $1', [childEmail]);
                                     if (checkChild.rows.length > 0) {
                                         throw new Error(`Student email already registered: ${childEmail}`);
@@ -353,11 +341,9 @@ class PaymentService {
                                         [childUser.id]
                                     );
 
-                                    // Enroll child in selected subjects (if provided)
                                     const subjects = child.subjects;
                                     if (Array.isArray(subjects) && subjects.length > 0) {
                                         for (const subjectId of subjects) {
-                                            // Only insert valid UUID subject IDs to avoid SQL errors
                                             if (typeof subjectId === 'string' && uuidRegex.test(subjectId)) {
                                                 await client.query(
                                                     `INSERT INTO student_subjects (student_id, subject_id)
@@ -376,8 +362,7 @@ class PaymentService {
                             const startDate = new Date();
                             const endDate = addDays(startDate, durationDays);
 
-                            // Fetch the plan name/type to use for the subscription plan column
-                            let planType = 'family'; // default to family
+                            let planType = 'family';
                             if (planId && uuidRegex.test(planId)) {
                                 try {
                                     const planTypeRes = await client.query('SELECT plan_name FROM plans WHERE id = $1', [planId]);
@@ -458,7 +443,6 @@ class PaymentService {
                     }
                 }
 
-                // 4. Update existing user's subscription (upgrade flow)
                 const payment = existingPayment;
 
                 if (payment) {
@@ -468,7 +452,6 @@ class PaymentService {
 
                     let durationDays = 30;
 
-                    // Safeguard: Ensure planId is a valid UUID before querying
                     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
                     if (planId && !uuidRegex.test(planId)) {
                         console.warn(`[PaymentService.verifyPayment] Warning: Invalid plan ID format "${planId}" in upgrade flow. Ignoring plan lookup.`);
@@ -492,7 +475,6 @@ class PaymentService {
                     const startDate = new Date();
                     const endDate = addDays(startDate, durationDays);
 
-                    // Ensure only one active subscription at a time
                     await SubscriptionModel.deactivateActive(payment.user_id);
 
                     const subscription = await SubscriptionModel.create({
@@ -505,7 +487,6 @@ class PaymentService {
                         payment_reference: reference
                     });
 
-                    // Keep users table in sync (auth middleware relies on these fields)
                     await pool.query(
                         `UPDATE users
                          SET subscription_status = 'active',
@@ -550,28 +531,19 @@ class PaymentService {
             }
 
             const email = user.email;
-            const callbackUrl = `${process.env.FRONTEND_URL || 'http://localhost:8080'}/payment/verify`; // Frontend verification route
-
-            // Fetch Plan details to check for recurring plan code
-            // We need to fetch the plan using PlanModel or direct query. 
-            // Since we are in Service, it's better to use Model. 
-            // BUT PlanModel.findById queries 'plans' table.
-
-            // Note: PlanModel wasn't imported. I need to add it or query directly.
-            // Let's assume I can query using pool or need to import PlanModel.
-            // For safety and existing pattern, I'll use pool since PlanModel might not be imported in this file yet.
-
-            // Check imports at top of file: PaymentModel, SubscriptionModel, pool. 
-            // PlanModel is NOT imported. I will add import at top in next step? 
-            // For now, I'll use direct pool query to be safe and atomic in this edit.
+            const clientUrl = process.env.CLIENT_URL;
+            if (!clientUrl) {
+                throw new Error('CLIENT_URL environment variable is not set');
+            }
+            const callbackUrl = `${clientUrl}/payment/verify`;
 
             const planResult = await pool.query('SELECT paystack_plan_code FROM plans WHERE id = $1', [planId]);
             const planCode = planResult.rows[0]?.paystack_plan_code;
 
             const payload = {
                 email,
-                amount: Math.round(Number(amount) * 100), // Ensure integer Kobo/Pesewas
-                currency: 'GHS', // Ghanaian Cedis
+                amount: Math.round(Number(amount) * 100),
+                currency: 'GHS',
                 callback_url: callbackUrl,
                 metadata: {
                     plan_id: planId,
@@ -579,12 +551,10 @@ class PaymentService {
                 }
             };
 
-            // If it's a recurring plan, add the plan code
             if (planCode) {
                 payload.plan = planCode;
             }
 
-            // 1. Initialize with Paystack
             let response;
             try {
                 response = await axios.post(
@@ -606,7 +576,6 @@ class PaymentService {
 
             const { authorization_url, access_code, reference } = response.data.data;
 
-            // 2. Create Pending Payment Record
             await PaymentModel.create({
                 user_id: user.id,
                 plan_id: planId,

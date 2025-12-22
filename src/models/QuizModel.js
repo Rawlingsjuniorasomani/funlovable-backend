@@ -1,11 +1,12 @@
 const pool = require('../db/pool');
 
 class QuizModel {
-    // Create quiz with enhanced fields
+
     static async create(data) {
         const {
             teacher_id, subject_id, module_id, title,
             description = '',
+            lesson_id = null,
             quiz_type = 'standard',
             duration_minutes = 30,
             total_marks = 100,
@@ -15,20 +16,22 @@ class QuizModel {
             class_name = '',
             randomize_questions = false,
             max_attempts = 1,
-            allow_review = true
+            allow_review = true,
+            pass_mark = 60
         } = data;
+
 
         const result = await pool.query(`
             INSERT INTO quizzes (
-                teacher_id, subject_id, module_id, title, description,
+                teacher_id, subject_id, module_id, lesson_id, title, description,
                 quiz_type, duration_minutes, total_marks, start_date, end_date,
-                instructions, class_name, randomize_questions, max_attempts, allow_review
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                instructions, class_name, randomize_questions, max_attempts, allow_review, pass_mark
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             RETURNING *
         `, [
-            teacher_id, subject_id, module_id, title, description,
+            teacher_id, subject_id, module_id, lesson_id, title, description,
             quiz_type, duration_minutes, total_marks, start_date, end_date,
-            instructions, class_name, randomize_questions, max_attempts, allow_review
+            instructions, class_name, randomize_questions, max_attempts, allow_review, pass_mark
         ]);
 
         return result.rows[0];
@@ -112,7 +115,7 @@ class QuizModel {
         return result.rows;
     }
 
-    // Question management
+
     static async addQuestion(data) {
         const { quiz_id, question_type, question, options, correct_answer, marks, order_index } = data;
 
@@ -151,7 +154,7 @@ class QuizModel {
         await pool.query('DELETE FROM quiz_questions WHERE id = $1', [id]);
     }
 
-    // Attempt management
+
     static async startAttempt(quizId, studentId) {
         const result = await pool.query(`
             INSERT INTO quiz_attempts (quiz_id, student_id, start_time, status)
@@ -182,7 +185,7 @@ class QuizModel {
         return result.rows;
     }
 
-    // Answer management
+
     static async saveAnswer(data) {
         const { attempt_id, question_id, answer } = data;
 
@@ -217,13 +220,13 @@ class QuizModel {
         return result.rows[0];
     }
 
-    // Submit and auto-grade
+
     static async submitAttempt(attemptId, timeTaken) {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
 
-            // Get all answers with questions
+
             const answers = await client.query(`
                 SELECT qa.*, qq.correct_answer, qq.marks, qq.question_type
                 FROM quiz_answers qa
@@ -233,7 +236,7 @@ class QuizModel {
 
             let autoGradedScore = 0;
 
-            // Auto-grade objective questions
+
             for (const answer of answers.rows) {
                 if (answer.question_type === 'mcq' || answer.question_type === 'true_false') {
                     const isCorrect = answer.answer.toLowerCase().trim() === answer.correct_answer.toLowerCase().trim();
@@ -249,7 +252,7 @@ class QuizModel {
                 }
             }
 
-            // Update attempt
+
             const result = await client.query(`
                 UPDATE quiz_attempts 
                 SET status = 'submitted',

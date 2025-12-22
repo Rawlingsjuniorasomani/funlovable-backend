@@ -24,7 +24,7 @@ async function checkDatabase() {
             });
         }
 
-        // Check for users
+        
         const userCountRes = await pool.query('SELECT count(*) FROM users');
         console.log(`\n✅ Total Users: ${userCountRes.rows[0].count}`);
 

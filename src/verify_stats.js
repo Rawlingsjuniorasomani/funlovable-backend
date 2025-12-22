@@ -10,7 +10,7 @@ const pool = new Pool({
 async function verifyStats() {
     let client;
     try {
-        // 1. Login as Admin
+        
         console.log('Logging in as admin...');
         const loginRes = await axios.post('http://localhost:5000/api/auth/login', {
             email: 'admin@edulearn.com',
@@ -20,7 +20,7 @@ async function verifyStats() {
         const token = loginRes.data.token;
         console.log('Admin logged in. Token received.');
 
-        // 2. Fetch Stats
+        
         console.log('Fetching admin stats...');
         const statsRes = await axios.get('http://localhost:5000/api/admin/stats', {
             headers: { Authorization: `Bearer ${token}` }
@@ -28,7 +28,7 @@ async function verifyStats() {
 
         console.log('Stats received:', statsRes.data);
 
-        // 3. Verify Structure
+        
         const stats = statsRes.data;
         const requiredKeys = ['totalUsers', 'totalTeachers', 'totalParents', 'totalStudents', 'totalSubjects', 'totalRevenue'];
         const missingKeys = requiredKeys.filter(k => !(k in stats));
@@ -39,7 +39,7 @@ async function verifyStats() {
             console.log('✅ Stats response structure is correct.');
         }
 
-        // 4. Manual DB Check
+        
         const usersCount = await pool.query('SELECT COUNT(*) FROM users');
         console.log(`DB Check: Total Users in DB: ${usersCount.rows[0].count}`);
 

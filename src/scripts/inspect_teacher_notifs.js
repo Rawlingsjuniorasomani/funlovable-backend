@@ -4,7 +4,7 @@ const pool = require('../db/pool');
 async function inspect() {
     try {
         console.log('--- Teacher User Info ---');
-        // Get the first teacher in the DB to compare with notification user_ids
+        
         const user = await pool.query("SELECT id, name, email FROM users WHERE role = 'teacher' LIMIT 1");
         console.log('Teacher:', user.rows[0]);
 
